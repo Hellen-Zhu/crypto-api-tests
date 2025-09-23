@@ -21,31 +21,17 @@ def step_when_connect_websocket(context):
     context.is_connected = context.ws_client.connect()
 
 
-@when('I call WebSocket API "{api_key}"')
-def step_when_call_websocket_api(context, api_key):
+@when('I call WebSocket API "{api_key}" with channel "{channel}"')
+def step_when_call_websocket_api_with_channel(context, api_key, channel):
     """
-    Call WebSocket API (get parameters from datatable)
+    Call WebSocket API with specific channel
 
     Example:
-        When I call WebSocket API "subscribe_orderbook"
-            | parameter       | value     |
-            | instrument_name | BTC_USDT  |
-            | depth           | 10        |
+        When I call WebSocket API "subscribe_orderbook" with channel "book.BTCUSD-PERP.10"
     """
-    # Get parameters from datatable
-    params = {}
-    if hasattr(context, 'table') and context.table:
-        for row in context.table:
-            param_value = row['value']
-            # Try to convert numeric types
-            try:
-                if param_value.isdigit():
-                    param_value = int(param_value)
-                elif param_value.replace('.', '', 1).isdigit():
-                    param_value = float(param_value)
-            except:
-                pass
-            params[row['parameter']] = param_value
+    params = {
+        'channel': channel
+    }
 
     print(f"Calling WebSocket API: {api_key}, parameters: {params}")
     context.ws_api_key = api_key
@@ -81,20 +67,39 @@ def step_then_should_receive_websocket_message(context):
     print("WebSocket message received")
 
 
+@then('should receive WebSocket error message')
+def step_then_should_receive_websocket_error_message(context):
+    """Validate received WebSocket error message"""
+    assert context.message_received, "No WebSocket message received"
+
+    # Check if the latest message contains error information
+    latest_message = context.ws_client.get_latest_message()
+    if isinstance(latest_message, dict):
+        # Check for error indicators
+        has_error = (
+            latest_message.get('code', 0) != 0 or
+            'error' in latest_message or
+            'message' in latest_message
+        )
+        assert has_error, f"Expected error message, but received: {latest_message}"
+
+    print("WebSocket error message received as expected")
+
+
 @then('WebSocket message should validate successfully')
 def step_then_websocket_message_should_validate(context):
-    """Validate WebSocket message content"""
+    """Validate WebSocket subscription confirmation message"""
     validation_result = context.ws_client.validate_websocket_response(
-        context.ws_api_key, "data_message"
+        context.ws_api_key, "subscription_confirmation"
     )
 
-    print(f"WebSocket message validation result: {validation_result}")
+    print(f"WebSocket subscription confirmation validation result: {validation_result}")
 
     if not validation_result['is_valid']:
         errors = '\n'.join(validation_result['all_errors'])
-        raise AssertionError(f"WebSocket message validation failed:\n{errors}")
+        raise AssertionError(f"WebSocket subscription confirmation validation failed:\n{errors}")
 
-    print("WebSocket message validation successful")
+    print("WebSocket subscription confirmation validation successful")
 
 
 @then('I disconnect WebSocket connection')

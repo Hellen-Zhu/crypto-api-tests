@@ -6,61 +6,33 @@ Feature: WebSocket Order Book Data Testing
     Background:
         Given I have a WebSocket client
 
-    Scenario: Subscribe to BTC USDT depth 10 order book data
+    Scenario Outline: Subscribe to order book data for valid instruments
         When I connect to WebSocket server
         Then WebSocket should connect successfully
-        When I call WebSocket API "subscribe_orderbook"
-            | parameter       | value     |
-            | instrument_name | BTC_USDT  |
-            | depth           | 10        |
+        When I call WebSocket API "subscribe_orderbook" with channel "<channel>"
         Then WebSocket message should send successfully
         When I wait for WebSocket message
         Then should receive WebSocket message
         And WebSocket message should validate successfully
         Then I disconnect WebSocket connection
 
-    Scenario: Subscribe to ETH USDT depth 50 order book data
+        Examples:
+            | channel              |
+            | book.BTCUSD-PERP.10  |
+            | book.ETHUSD-PERP.50  |
+            | book.AAVEUSD-PERP.10 |
+
+    Scenario Outline: Subscribe to order book data with invalid parameters
         When I connect to WebSocket server
         Then WebSocket should connect successfully
-        When I call WebSocket API "subscribe_orderbook"
-            | parameter       | value     |
-            | instrument_name | ETH_USDT  |
-            | depth           | 50        |
+        When I call WebSocket API "subscribe_orderbook" with channel "<channel>"
         Then WebSocket message should send successfully
         When I wait for WebSocket message
-        Then should receive WebSocket message
-        And WebSocket message should validate successfully
+        Then should receive WebSocket error message
         Then I disconnect WebSocket connection
 
-    Scenario: Subscribe to AAVE USDT depth 20 order book data
-        When I connect to WebSocket server
-        Then WebSocket should connect successfully
-        When I call WebSocket API "subscribe_orderbook"
-            | parameter       | value     |
-            | instrument_name | AAVE_USDT |
-            | depth           | 20        |
-        Then WebSocket message should send successfully
-        When I wait for WebSocket message
-        Then should receive WebSocket message
-        And WebSocket message should validate successfully
-        Then I disconnect WebSocket connection
-
-    Scenario: Subscribe to order book data with invalid instrument
-        When I connect to WebSocket server
-        Then WebSocket should connect successfully
-        When I call WebSocket API "subscribe_orderbook"
-            | parameter       | value     |
-            | instrument_name | XXX_YYY   |
-            | depth           | 10        |
-        Then WebSocket message should send successfully
-        Then I disconnect WebSocket connection
-
-    Scenario: Subscribe to order book data with invalid depth
-        When I connect to WebSocket server
-        Then WebSocket should connect successfully
-        When I call WebSocket API "subscribe_orderbook"
-            | parameter       | value     |
-            | instrument_name | BTC_USDT  |
-            | depth           | 99        |
-        Then WebSocket message should send successfully
-        Then I disconnect WebSocket connection
+        Examples:
+            | channel            |
+            | book.INVALID.10    |
+            | book.BTCUSD-PERP.0 |
+            | invalid.format     |

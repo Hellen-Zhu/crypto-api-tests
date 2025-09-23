@@ -14,22 +14,36 @@ def step_given_rest_client(context):
     print("REST API client initialized")
 
 
-@when('I call REST API "{api_key}"')
-def step_when_call_rest_api(context, api_key):
+@when('I call REST API "{api_key}" with instrument "{instrument}" and timeframe "{timeframe}"')
+def step_when_call_rest_api_with_params(context, api_key, instrument, timeframe):
     """
-    Call REST API (get parameters from datatable)
+    Call REST API with specific parameters
 
     Example:
-        When I call REST API "get_candlestick"
-            | parameter       | value        |
-            | instrument_name | BTCUSDT-PERP |
-            | timeframe       | M5           |
+        When I call REST API "get_candlestick" with instrument "BTCUSD-PERP" and timeframe "M5"
     """
-    # Get parameters from datatable
-    params = {}
-    if hasattr(context, 'table') and context.table:
-        for row in context.table:
-            params[row['parameter']] = row['value']
+    params = {
+        'instrument_name': instrument,
+        'timeframe': timeframe
+    }
+
+    print(f"Calling REST API: {api_key}, parameters: {params}")
+    context.api_key = api_key
+    context.api_params = params
+    context.response = context.rest_client.call_api(api_key, **params)
+
+
+@when('I call REST API "{api_key}" with instrument "{instrument}"')
+def step_when_call_rest_api_with_instrument(context, api_key, instrument):
+    """
+    Call REST API with instrument parameter only
+
+    Example:
+        When I call REST API "get_tickers" with instrument "BTCUSD-PERP"
+    """
+    params = {
+        'instrument_name': instrument
+    }
 
     print(f"Calling REST API: {api_key}, parameters: {params}")
     context.api_key = api_key

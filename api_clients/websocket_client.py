@@ -6,6 +6,7 @@
 import json
 import time
 import threading
+import ssl
 from typing import Dict, Any, List, Optional
 import websocket
 from utils.config import Config
@@ -15,12 +16,12 @@ from utils.assertion_engine import ResponseValidator
 class WebSocketClient:
     """WebSocket客户端"""
 
-    def __init__(self, api_definitions_file: str = "data/api_definitions.json"):
+    def __init__(self, api_definitions_file: str = "data/websocket_api_definitions.json"):
         """
         初始化WebSocket客户端
 
         Args:
-            api_definitions_file: API定义文件路径
+            api_definitions_file: WebSocket API定义文件路径
         """
         self.ws = None
         self.is_connected = False
@@ -68,7 +69,15 @@ class WebSocketClient:
                 on_close=self._on_close
             )
 
-            self.connection_thread = threading.Thread(target=self.ws.run_forever)
+            # Configure SSL to skip certificate verification for testing
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+            self.connection_thread = threading.Thread(
+                target=self.ws.run_forever,
+                kwargs={'sslopt': {"cert_reqs": ssl.CERT_NONE}}
+            )
             self.connection_thread.daemon = True
             self.connection_thread.start()
 
@@ -107,7 +116,7 @@ class WebSocketClient:
         Returns:
             bool: 是否发送成功
         """
-        api_def = self.api_definitions.get("websocket_apis", {}).get(api_key)
+        api_def = self.api_definitions.get(api_key)
         if not api_def:
             raise ValueError(f"未找到WebSocket API定义: {api_key}")
 
@@ -122,13 +131,12 @@ class WebSocketClient:
             if param not in kwargs:
                 raise ValueError(f"缺少必需参数: {param}")
 
-        # 构建频道名称
-        channel_template = api_def.get("channel_template", "")
-        channel = self._build_channel(channel_template, kwargs)
+        # 获取频道名称
+        channel = kwargs.get("channel", "")
 
         # 构建消息
         message_format = api_def.get("message_format", {})
-        message = self._build_message(message_format, channel, kwargs)
+        message = self._build_message(message_format, channel)
 
         # 记录订阅信息
         self.active_subscriptions[api_key] = {
@@ -166,14 +174,13 @@ class WebSocketClient:
                 channel = channel.replace(placeholder, str(value))
         return channel
 
-    def _build_message(self, message_format: Dict[str, Any], channel: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_message(self, message_format: Dict[str, Any], channel: str) -> Dict[str, Any]:
         """
         构建WebSocket消息
 
         Args:
             message_format: 消息格式
             channel: 频道名称
-            params: 参数
 
         Returns:
             Dict: 构建后的消息
@@ -184,11 +191,13 @@ class WebSocketClient:
                 if value == "{{channel}}":
                     message[key] = channel
                 elif value == "{{timestamp}}":
-                    message[key] = int(time.time())
+                    message[key] = int(time.time() * 1000)  # nonce needs milliseconds
                 else:
                     message[key] = value
+            elif isinstance(value, int):
+                message[key] = value
             elif isinstance(value, dict):
-                message[key] = self._build_message(value, channel, params)
+                message[key] = self._build_message(value, channel)
             elif isinstance(value, list):
                 message[key] = []
                 for item in value:
@@ -245,16 +254,29 @@ class WebSocketClient:
         subscription_info = self.active_subscriptions[api_key]
         api_def = subscription_info["api_definition"]
 
-        # 获取最新消息
-        latest_message = self.get_latest_message()
-        if not latest_message:
+        # 获取相应类型的消息
+        if message_type == "subscription_confirmation":
+            # 查找订阅确认消息
+            # 对于ticker API，包含result字段的也算是确认消息
+            target_message = None
+            for msg in self.received_messages:
+                if isinstance(msg, dict) and msg.get('method') == 'subscribe':
+                    # 如果是orderbook类型（不包含result），或者ticker类型（包含result）
+                    if 'result' not in msg or 'result' in msg:
+                        target_message = msg
+                        break
+        else:
+            # 获取最新消息
+            target_message = self.get_latest_message()
+
+        if not target_message:
             return {
                 "is_valid": False,
-                "all_errors": ["没有收到WebSocket消息"]
+                "all_errors": [f"没有收到{message_type}类型的WebSocket消息"]
             }
 
         print(f"验证WebSocket消息类型: {message_type}")
-        print(f"最新消息: {latest_message}")
+        print(f"目标消息: {target_message}")
 
         # 获取断言配置
         assertions = api_def.get("assertions", {}).get(message_type, {})
@@ -277,7 +299,7 @@ class WebSocketClient:
             def json(self):
                 return self._data
 
-        mock_response = MockResponse(latest_message)
+        mock_response = MockResponse(target_message)
         request_data = {
             "channel": subscription_info["channel"],
             "depth": subscription_info["params"].get("depth", 0)
@@ -322,7 +344,7 @@ class WebSocketClient:
         Returns:
             list: API键名列表
         """
-        return list(self.api_definitions.get("websocket_apis", {}).keys())
+        return list(self.api_definitions.keys())
 
     def get_api_definition(self, api_key: str) -> Dict[str, Any]:
         """
@@ -334,7 +356,7 @@ class WebSocketClient:
         Returns:
             Dict: API定义
         """
-        return self.api_definitions.get("websocket_apis", {}).get(api_key, {})
+        return self.api_definitions.get(api_key, {})
 
     def print_api_info(self, api_key: str):
         """

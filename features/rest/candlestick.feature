@@ -6,37 +6,21 @@ Feature: REST API Candlestick Data Testing
     Background:
         Given I have a REST API client
 
-    Scenario: Get AAVE USD perpetual M5 timeframe candlestick data
-        When I call REST API "get_candlestick"
-            | parameter       | value        |
-            | instrument_name | AAVEUSD-PERP |
-            | timeframe       | M5           |
+    Scenario Outline: Get candlestick data for valid instruments
+        When I call REST API "get_candlestick" with instrument "<instrument>" and timeframe "<timeframe>"
         Then the response should validate successfully
 
-    Scenario: Get BTC USDT perpetual H1 timeframe candlestick data
-        When I call REST API "get_candlestick"
-            | parameter       | value         |
-            | instrument_name | BTCUSD-PERP   |
-            | timeframe       | H1            |
-        Then the response should validate successfully
+        Examples:
+            | instrument   | timeframe |
+            | AAVEUSD-PERP | M5        |
+            | BTCUSD-PERP  | H1        |
+            | ETH_USD      | 1D        |
 
-    Scenario: Get ETH USD 1D timeframe candlestick data
-        When I call REST API "get_candlestick"
-            | parameter       | value         |
-            | instrument_name | ETH_USD      |
-            | timeframe       | 1D            |
-        Then the response should validate successfully
-
-    Scenario: Get candlestick data with invalid instrument
-        When I call REST API "get_candlestick"
-            | parameter       | value     |
-            | instrument_name | XXX_YYY   |
-            | timeframe       | M5        |
+    Scenario Outline: Get candlestick data with invalid parameters
+        When I call REST API "get_candlestick" with instrument "<instrument>" and timeframe "<timeframe>"
         Then the response should validate as error
 
-    Scenario: Get candlestick data with invalid timeframe
-        When I call REST API "get_candlestick"
-            | parameter       | value        |
-            | instrument_name | AAVEUSD-PERP |
-            | timeframe       | 3m           |
-        Then the response should validate as error
+        Examples:
+            | instrument   | timeframe |
+            | XXX_YYY      | M5        |
+            | AAVEUSD-PERP | 3m        |

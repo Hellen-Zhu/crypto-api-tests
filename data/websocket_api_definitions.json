@@ -1,0 +1,196 @@
+{
+  "subscribe_orderbook": {
+    "name": "订阅订单簿",
+    "action": "subscribe",
+    "parameters": {
+      "required": ["channel"],
+      "schema": {
+        "channel": {
+          "type": "string",
+          "description": "订阅频道",
+          "pattern": "^book\\.[A-Z]+-PERP\\.(5|10|20|50)$"
+        }
+      }
+    },
+    "message_format": {
+      "id": 1,
+      "method": "subscribe",
+      "params": {
+        "channels": ["{{channel}}"]
+      }
+    },
+    "assertions": {
+      "subscription_confirmation": {
+        "response_schema": {
+          "type": "object",
+          "required": ["id", "method", "code", "channel"],
+          "properties": {
+            "id": {"type": ["string", "integer"]},
+            "method": {"type": "string", "enum": ["subscribe"]},
+            "code": {"type": "integer", "enum": [0]},
+            "channel": {"type": "string"}
+          }
+        }
+      },
+      "data_message": {
+        "response_schema": {
+          "type": "object",
+          "required": ["channel", "data"],
+          "properties": {
+            "channel": {"type": "string"},
+            "data": {
+              "type": "object",
+              "required": ["bids", "asks", "t"],
+              "properties": {
+                "bids": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "asks": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "t": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "business_rules": [
+          {
+            "rule": "response.channel == request.channel",
+            "description": "返回的频道与订阅一致"
+          },
+          {
+            "rule": "len(response.data.bids) <= request.depth",
+            "description": "买单深度不超过请求深度"
+          },
+          {
+            "rule": "len(response.data.asks) <= request.depth",
+            "description": "卖单深度不超过请求深度"
+          }
+        ]
+      }
+    },
+    "error_assertions": {
+      "subscription_error": {
+        "response_schema": {
+          "type": "object",
+          "required": ["error", "id"],
+          "properties": {
+            "error": {
+              "type": "object",
+              "required": ["code", "message"],
+              "properties": {
+                "code": {"type": "integer"},
+                "message": {"type": "string"}
+              }
+            },
+            "id": {"type": ["string", "integer"]}
+          }
+        }
+      }
+    }
+  },
+  "subscribe_ticker": {
+    "name": "订阅Ticker数据",
+    "action": "subscribe",
+    "parameters": {
+      "required": ["channel"],
+      "schema": {
+        "channel": {
+          "type": "string",
+          "description": "Ticker订阅频道",
+          "pattern": "^ticker\\.[A-Z]+-PERP$"
+        }
+      }
+    },
+    "message_format": {
+      "id": 1,
+      "method": "subscribe",
+      "params": {
+        "channels": ["{{channel}}"]
+      },
+      "nonce": "{{timestamp}}"
+    },
+    "assertions": {
+      "subscription_confirmation": {
+        "response_schema": {
+          "type": "object",
+          "required": ["id", "method", "code", "result"],
+          "properties": {
+            "id": {"type": ["string", "integer"]},
+            "method": {"type": "string", "enum": ["subscribe"]},
+            "code": {"type": "integer", "enum": [0]},
+            "result": {
+              "type": "object",
+              "required": ["instrument_name", "subscription", "channel"],
+              "properties": {
+                "instrument_name": {"type": "string"},
+                "subscription": {"type": "string"},
+                "channel": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "data_message": {
+        "response_schema": {
+          "type": "object",
+          "required": ["channel", "data"],
+          "properties": {
+            "channel": {"type": "string"},
+            "data": {
+              "type": "object",
+              "required": ["i", "h", "l", "a", "b", "c", "v", "t"],
+              "properties": {
+                "i": {"type": "string"},
+                "h": {"type": "string"},
+                "l": {"type": "string"},
+                "a": {"type": "string"},
+                "b": {"type": "string"},
+                "c": {"type": "string"},
+                "v": {"type": "string"},
+                "t": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "business_rules": [
+          {
+            "rule": "response.channel == request.channel",
+            "description": "返回的频道与订阅一致"
+          }
+        ]
+      }
+    },
+    "error_assertions": {
+      "subscription_error": {
+        "response_schema": {
+          "type": "object",
+          "required": ["error", "id"],
+          "properties": {
+            "error": {
+              "type": "object",
+              "required": ["code", "message"],
+              "properties": {
+                "code": {"type": "integer"},
+                "message": {"type": "string"}
+              }
+            },
+            "id": {"type": ["string", "integer"]}
+          }
+        }
+      }
+    }
+  }
+}

@@ -13,12 +13,12 @@ from utils.assertion_engine import ResponseValidator
 class RestClient:
     """REST API客户端"""
 
-    def __init__(self, api_definitions_file: str = "data/api_definitions.json"):
+    def __init__(self, api_definitions_file: str = "data/rest_api_definitions.json"):
         """
         初始化客户端
 
         Args:
-            api_definitions_file: API定义文件路径
+            api_definitions_file: REST API定义文件路径
         """
         self.session = requests.Session()
         self.last_response = None
@@ -53,9 +53,9 @@ class RestClient:
         Returns:
             requests.Response: 响应对象
         """
-        api_def = self.api_definitions.get("rest_apis", {}).get(api_key)
+        api_def = self.api_definitions.get(api_key)
         if not api_def:
-            raise ValueError(f"API definition not found: {api_key}")
+            raise ValueError(f"REST API definition not found: {api_key}")
 
         # 构建请求URL
         endpoint = api_def["endpoint"]
@@ -146,7 +146,7 @@ class RestClient:
         if self.last_response is None:
             raise ValueError("No response data available")
 
-        api_def = self.api_definitions.get("rest_apis", {}).get(api_key)
+        api_def = self.api_definitions.get(api_key)
         if not api_def:
             raise ValueError(f"API definition not found: {api_key}")
 
@@ -176,7 +176,7 @@ class RestClient:
         Returns:
             list: API键名列表
         """
-        return list(self.api_definitions.get("rest_apis", {}).keys())
+        return list(self.api_definitions.keys())
 
     def get_api_definition(self, api_key: str) -> Dict[str, Any]:
         """
@@ -188,7 +188,7 @@ class RestClient:
         Returns:
             Dict: API定义
         """
-        return self.api_definitions.get("rest_apis", {}).get(api_key, {})
+        return self.api_definitions.get(api_key, {})
 
     def print_api_info(self, api_key: str):
         """
