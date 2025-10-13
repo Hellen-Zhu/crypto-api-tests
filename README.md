@@ -5,57 +5,57 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-success.svg)]()
 
-**企业级数据驱动API自动化测试框架** - 专为加密货币交易所设计，支持 HTTP REST API 和 WebSocket 实时数据流测试。
+**Enterprise-grade Data-Driven API Automation Testing Framework** - Designed for cryptocurrency exchanges, supporting both HTTP REST API and WebSocket real-time data stream testing.
 
-## 📋 目录
+## 📋 Table of Contents
 
-- [核心特性](#-核心特性)
-- [架构设计](#-架构设计)
-- [快速开始](#-快速开始)
-- [使用指南](#-使用指南)
-- [测试用例管理](#-测试用例管理)
-- [WebSocket测试](#-websocket测试)
-- [高级功能](#-高级功能)
-- [项目结构](#-项目结构)
-- [性能优化](#-性能优化)
-- [文档资源](#-文档资源)
-- [贡献指南](#-贡献指南)
+- [Core Features](#-core-features)
+- [Architecture Design](#-architecture-design)
+- [Quick Start](#-quick-start)
+- [Usage Guide](#-usage-guide)
+- [Test Case Management](#-test-case-management)
+- [WebSocket Testing](#-websocket-testing)
+- [Advanced Features](#-advanced-features)
+- [Project Structure](#-project-structure)
+- [Performance Optimization](#-performance-optimization)
+- [Documentation Resources](#-documentation-resources)
+- [Contributing](#-contributing)
 
-## ✨ 核心特性
+## ✨ Core Features
 
-### 🎯 创新架构
-- **数据驱动设计** - 测试逻辑与测试数据完全分离，配置即测试
-- **2表设计** - 使用 PostgreSQL JSONB 存储灵活的测试步骤，无需频繁修改表结构
-- **零侵入扩展** - 通过 `protocol` 字段无缝支持 HTTP 和 WebSocket
-- **企业级连接池** - 优化的数据库连接池（20基础+10溢出）
+### 🎯 Innovative Architecture
+- **Data-Driven Design** - Complete separation of test logic and test data, configuration as test
+- **2-Table Design** - Uses PostgreSQL JSONB to store flexible test steps, no frequent schema changes needed
+- **Zero-Invasion Extension** - Seamlessly supports HTTP and WebSocket via `protocol` field
+- **Enterprise Connection Pool** - Optimized database connection pool (20 base + 10 overflow)
 
-### 🔧 强大功能
-- ✅ **HTTP REST API 测试** - 完整的请求/响应验证
-- ✅ **WebSocket 实时测试** - 订阅、推送消息验证
-- ✅ **数据库验证** - 直接查询验证数据一致性
-- ✅ **E2E 流程测试** - 跨步骤变量传递和状态管理
-- ✅ **并行执行** - pytest-xdist 支持多进程并行
-- ✅ **多环境支持** - 灵活的环境配置和路由
-- ✅ **Allure 报告** - 专业的可视化测试报告
+### 🔧 Powerful Capabilities
+- ✅ **HTTP REST API Testing** - Complete request/response validation
+- ✅ **WebSocket Real-time Testing** - Subscription and push message validation
+- ✅ **Database Validation** - Direct query verification for data consistency
+- ✅ **E2E Flow Testing** - Cross-step variable passing and state management
+- ✅ **Parallel Execution** - pytest-xdist support for multi-process parallelism
+- ✅ **Multi-Environment Support** - Flexible environment configuration and routing
+- ✅ **Allure Reports** - Professional visual test reporting
 
-### 📊 验证引擎
-支持多种验证类型：
-- `expectedStatusCode` - HTTP 状态码验证
-- `body` - JSON 响应体字段验证
-- `notNull` / `notExist` - 字段存在性验证
-- `containsText` - 文本包含验证
-- `dbValidation` - 数据库查询验证
-- `validation override` - 数据集级别的验证覆盖
+### 📊 Validation Engine
+Supports multiple validation types:
+- `expectedStatusCode` - HTTP status code validation
+- `body` - JSON response body field validation
+- `notNull` / `notExist` - Field existence validation
+- `containsText` - Text content validation
+- `dbValidation` - Database query validation
+- `validation override` - Dataset-level validation override
 
-### 🌟 智能特性
-- **占位符解析** - `{{@variable}}` 数据集变量，`{{step_X.response.body.field}}` 步骤间传递
-- **变量提取** - JSONPath 提取响应数据供后续步骤使用
-- **日志系统** - Loguru 彩色日志，自动轮转，错误单独存储
-- **调试模式** - 详细的审计日志写入数据库
+### 🌟 Smart Features
+- **Placeholder Resolution** - `{{@variable}}` for dataset variables, `{{step_X.response.body.field}}` for inter-step passing
+- **Variable Extraction** - JSONPath extraction of response data for subsequent steps
+- **Logging System** - Loguru colored logs, auto-rotation, separate error storage
+- **Debug Mode** - Detailed audit logs written to database
 
-## 🏗️ 架构设计
+## 🏗️ Architecture Design
 
-### 核心理念
+### Core Concept
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -85,161 +85,161 @@
               │   Python Test Engine    │
               │                         │
               │  ┌──────────────────┐  │
-              │  │  db_handler.py   │  │ - 数据库访问层
+              │  │  db_handler.py   │  │ - Database access layer
               │  └──────────────────┘  │
               │  ┌──────────────────┐  │
-              │  │  api_client.py   │  │ - HTTP/WebSocket执行
+              │  │  api_client.py   │  │ - HTTP/WebSocket executor
               │  └──────────────────┘  │
               │  ┌──────────────────┐  │
-              │  │ assertion_engine │  │ - 验证引擎
+              │  │ assertion_engine │  │ - Validation engine
               │  └──────────────────┘  │
               │  ┌──────────────────┐  │
-              │  │ context_manager  │  │ - 变量管理
+              │  │ context_manager  │  │ - Variable manager
               │  └──────────────────┘  │
               └─────────────────────────┘
                            ↓
                     Allure Reports
 ```
 
-### 技术栈
+### Tech Stack
 
-| 组件 | 技术 | 版本 | 用途 |
-|-----|------|------|------|
-| **测试框架** | Pytest | 7.4.3 | 测试执行引擎 |
-| **数据库** | PostgreSQL | 14+ | 测试数据存储 |
-| **ORM** | SQLAlchemy | 2.0.23 | 数据库访问 |
-| **HTTP客户端** | Requests | 2.31.0 | REST API调用 |
-| **WebSocket** | websocket-client | 1.7.0 | WebSocket连接 |
-| **报告** | Allure | 2.13.2 | 测试报告生成 |
-| **日志** | Loguru | 0.7.2 | 日志系统 |
-| **并行** | pytest-xdist | 3.8.0 | 并行执行 |
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| **Test Framework** | Pytest | 7.4.3 | Test execution engine |
+| **Database** | PostgreSQL | 14+ | Test data storage |
+| **ORM** | SQLAlchemy | 2.0.23 | Database access |
+| **HTTP Client** | Requests | 2.31.0 | REST API calls |
+| **WebSocket** | websocket-client | 1.7.0 | WebSocket connections |
+| **Reporting** | Allure | 2.13.2 | Test report generation |
+| **Logging** | Loguru | 0.7.2 | Logging system |
+| **Parallel** | pytest-xdist | 3.8.0 | Parallel execution |
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 1. 环境要求
+### 1. Requirements
 
 - Python 3.12+
 - PostgreSQL 14+
 - Git
 
-### 2. 安装步骤
+### 2. Installation
 
 ```bash
-# 克隆仓库
+# Clone repository
 git clone https://github.com/Hellen-Zhu/crypto-api-tests.git
 cd crypto-api-tests
 
-# 创建虚拟环境
+# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. 配置数据库
+### 3. Database Configuration
 
-创建 `.env` 文件：
+Create `.env` file:
 
 ```bash
-# 数据库配置
+# Database configuration
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_NAME=apitest
 DB_PASSWORD=your_password
 
-# 连接池配置（可选）
+# Connection pool configuration (optional)
 DB_POOL_SIZE=20
 DB_MAX_OVERFLOW=10
 DB_POOL_TIMEOUT=30
 DB_POOL_RECYCLE=3600
 
-# 测试环境
+# Test environment
 TEST_ENV=uat
 PYTEST_PARALLEL_WORKERS=2
 ```
 
-### 4. 初始化数据库
+### 4. Initialize Database
 
 ```bash
-# 执行数据库迁移脚本
+# Execute database migration scripts
 psql -h localhost -p 5432 -U postgres -d apitest -f database/migrations/rebuild_test_environments_final.sql
 
-# 导入示例测试用例
+# Import sample test cases
 psql -h localhost -p 5432 -U postgres -d apitest -f database/examples/example_user_management.sql
 psql -h localhost -p 5432 -U postgres -d apitest -f database/examples/example_get_candlestick.sql
 psql -h localhost -p 5432 -U postgres -d apitest -f database/examples/example_websocket_ticker_mvp.sql
 ```
 
-### 5. 运行测试
+### 5. Run Tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 python run.py
 
-# 运行特定环境的测试
+# Run tests for specific environment
 python run.py --env uat
 
-# 并行执行
+# Parallel execution
 python run.py --env exchange_uat -n 4
 
-# 查看测试报告
+# View test report
 allure serve reports/allure-report
 ```
 
-## 📖 使用指南
+## 📖 Usage Guide
 
-### 基本命令
+### Basic Commands
 
 ```bash
-# 按环境运行
-python run.py --env uat                    # UAT环境
-python run.py --env exchange_uat           # Exchange UAT环境
+# Run by environment
+python run.py --env uat                    # UAT environment
+python run.py --env exchange_uat           # Exchange UAT environment
 
-# 按服务/模块筛选
+# Filter by service/module
 python run.py --env uat --service "user_svc"
 python run.py --env exchange_uat --module "Market Data"
 
-# 按标签筛选
-python run.py --env uat --tags "P0,smoke"        # P0 和 smoke 标签
-python run.py --env exchange_uat --tags "negative"  # 负面测试
+# Filter by tags
+python run.py --env uat --tags "P0,smoke"        # P0 and smoke tags
+python run.py --env exchange_uat --tags "negative"  # Negative tests
 
-# 运行特定测试用例
-python run.py --env uat --id 1             # 运行 case_id=1
-python run.py --env uat --jira "PROJ-123"  # 按Jira ID运行
+# Run specific test case
+python run.py --env uat --id 1             # Run case_id=1
+python run.py --env uat --jira "PROJ-123"  # Run by Jira ID
 
-# 并行执行
-python run.py --env exchange_uat -n 4      # 4个worker
-python run.py --env uat -n auto            # 自动检测CPU核心数
+# Parallel execution
+python run.py --env exchange_uat -n 4      # 4 workers
+python run.py --env uat -n auto            # Auto-detect CPU cores
 
-# Debug模式
-python run.py --env uat --debug-mode       # 详细审计日志写入数据库
+# Debug mode
+python run.py --env uat --debug-mode       # Write detailed audit logs to database
 ```
 
-### 查看测试报告
+### View Test Reports
 
-测试执行完成后，Allure 报告自动生成：
+After test execution, Allure report is automatically generated:
 
 ```bash
-# 方法1: 自动打开浏览器
+# Method 1: Auto-open browser
 allure serve reports/allure-report
 
-# 方法2: 生成并手动打开
+# Method 2: Generate and manually open
 allure generate reports/allure-results -o reports/allure-report --clean
 allure open reports/allure-report -p 8889
 ```
 
-报告访问地址：`http://127.0.0.1:8889`
+Report URL: `http://127.0.0.1:8889`
 
-## 🗄️ 测试用例管理
+## 🗄️ Test Case Management
 
-### 创建新测试用例
+### Create New Test Case
 
-#### 方法1: 使用 SQL 模板
+#### Method 1: Using SQL Template
 
 ```sql
--- 1. 创建测试用例
+-- 1. Create test case
 INSERT INTO api_auto_cases (name, service, module, component, tags, parameters)
 VALUES (
     'User Login Test',
@@ -276,10 +276,10 @@ VALUES (
     }'::jsonb
 ) RETURNING id;
 
--- 2. 创建数据集
+-- 2. Create dataset
 INSERT INTO case_data_sets (case_id, data_set_name, variables, environments, is_active)
 VALUES (
-    1,  -- 替换为上面返回的id
+    1,  -- Replace with id returned above
     'Valid Admin Login',
     '{"username": "admin", "password": "admin123"}'::jsonb,
     ARRAY['uat', 'dev'],
@@ -287,35 +287,35 @@ VALUES (
 );
 ```
 
-#### 方法2: 使用 Python 脚本
+#### Method 2: Using Python Scripts
 
-参考 `scripts/` 目录下的示例脚本。
+Refer to example scripts in `scripts/` directory.
 
-### 管理测试数据
+### Manage Test Data
 
 ```bash
-# 导出测试用例到 Excel
+# Export test cases to Excel
 python scripts/export_candlestick_to_excel.py
 
-# 清理重复测试
+# Clean duplicate tests
 python scripts/remove_duplicate_tests.py
 
-# 合并测试用例
+# Merge test cases
 python scripts/merge_candlestick_cases.py
 
-# 查看测试统计
+# View test statistics
 python scripts/final_stats.py
 ```
 
-### SQL 快速查询
+### SQL Quick Queries
 
 ```sql
--- 查看所有测试用例
+-- View all test cases
 SELECT id, name, service, module, tags 
 FROM api_auto_cases 
 ORDER BY id;
 
--- 查看测试数据集
+-- View test datasets
 SELECT 
     ac.id as case_id,
     ac.name as case_name,
@@ -327,22 +327,22 @@ FROM api_auto_cases ac
 JOIN case_data_sets cds ON cds.case_id = ac.id
 ORDER BY ac.id, cds.id;
 
--- 查看环境配置
+-- View environment configuration
 SELECT name, base_url, services 
 FROM test_environments 
 WHERE is_active = true;
 
--- 按标签筛选
+-- Filter by tags
 SELECT id, name, tags 
 FROM api_auto_cases 
 WHERE tags @> ARRAY['P0'];
 ```
 
-## 🌐 WebSocket测试
+## 🌐 WebSocket Testing
 
-框架完整支持 WebSocket 实时数据流测试。
+Framework fully supports WebSocket real-time data stream testing.
 
-### WebSocket 测试示例
+### WebSocket Test Example
 
 ```sql
 INSERT INTO api_auto_cases (name, service, module, tags, parameters)
@@ -400,33 +400,33 @@ VALUES (
 );
 ```
 
-### WebSocket 支持的操作
+### WebSocket Supported Actions
 
-| Action | 说明 | 参数 |
-|--------|------|------|
-| `connect` | 建立WebSocket连接 | `url`, `timeout` |
-| `send` | 发送消息 | `message` (JSON) |
-| `wait` | 等待接收消息 | `message_count`, `timeout`, `validations`, `outputs` |
-| `disconnect` | 断开连接 | 无 |
+| Action | Description | Parameters |
+|--------|-------------|-----------|
+| `connect` | Establish WebSocket connection | `url`, `timeout` |
+| `send` | Send message | `message` (JSON) |
+| `wait` | Wait for messages | `message_count`, `timeout`, `validations`, `outputs` |
+| `disconnect` | Close connection | None |
 
-### 运行 WebSocket 测试
+### Run WebSocket Tests
 
 ```bash
-# 运行所有WebSocket测试
+# Run all WebSocket tests
 python run.py --env exchange_uat --tags websocket
 
-# 运行正面测试
+# Run positive tests
 python run.py --env exchange_uat --tags websocket,smoke
 
-# 运行负面测试
+# Run negative tests
 python run.py --env exchange_uat --tags websocket,negative
 ```
 
-## 🎯 高级功能
+## 🎯 Advanced Features
 
-### 1. 变量传递机制
+### 1. Variable Passing Mechanism
 
-#### 数据集变量
+#### Dataset Variables
 ```json
 {
   "variables": {
@@ -435,9 +435,9 @@ python run.py --env exchange_uat --tags websocket,negative
   }
 }
 ```
-使用：`{{@username}}`
+Usage: `{{@username}}`
 
-#### 步骤间传递
+#### Inter-Step Passing
 ```json
 {
   "outputs": [
@@ -449,11 +449,11 @@ python run.py --env exchange_uat --tags websocket,negative
   ]
 }
 ```
-使用：`{{step_1.response.body.data.userId}}`
+Usage: `{{step_1.response.body.data.userId}}`
 
 ### 2. Validation Override
 
-在数据集中覆盖默认验证规则：
+Override default validation rules in dataset:
 
 ```json
 {
@@ -466,7 +466,7 @@ python run.py --env exchange_uat --tags websocket,negative
 }
 ```
 
-### 3. 数据库验证
+### 3. Database Validation
 
 ```json
 {
@@ -481,9 +481,9 @@ python run.py --env exchange_uat --tags websocket,negative
 }
 ```
 
-### 4. 混合协议测试
+### 4. Mixed Protocol Testing
 
-单个测试用例可同时包含 HTTP 和 WebSocket 步骤：
+Single test case can include both HTTP and WebSocket steps:
 
 ```json
 {
@@ -505,80 +505,80 @@ python run.py --env exchange_uat --tags websocket,negative
 }
 ```
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```
 crypto-api-tests/
-├── core/                          # 核心引擎
-│   ├── api_client.py             # HTTP/WebSocket执行引擎
-│   ├── websocket_client.py       # WebSocket客户端
-│   ├── assertion_engine.py       # 验证引擎
-│   ├── context_manager.py        # 变量上下文管理
-│   ├── db_handler.py             # 数据库访问层
-│   ├── result_writer.py          # 结果写入
-│   └── logger_config.py          # 日志配置
+├── core/                          # Core engine
+│   ├── api_client.py             # HTTP/WebSocket executor
+│   ├── websocket_client.py       # WebSocket client
+│   ├── assertion_engine.py       # Validation engine
+│   ├── context_manager.py        # Variable context manager
+│   ├── db_handler.py             # Database access layer
+│   ├── result_writer.py          # Result writer
+│   └── logger_config.py          # Logging configuration
 │
-├── tests/                         # 测试入口
-│   ├── conftest.py               # Pytest配置和fixtures
-│   └── test_main.py              # 主测试文件
+├── tests/                         # Test entry
+│   ├── conftest.py               # Pytest config and fixtures
+│   └── test_main.py              # Main test file
 │
-├── models/                        # 数据模型
-│   └── tables.py                 # SQLAlchemy ORM模型
+├── models/                        # Data models
+│   └── tables.py                 # SQLAlchemy ORM models
 │
-├── utils/                         # 工具函数
-│   └── placeholder_parser.py     # 占位符解析
+├── utils/                         # Utility functions
+│   └── placeholder_parser.py     # Placeholder resolver
 │
-├── database/                      # 数据库相关
-│   ├── examples/                 # SQL示例
+├── database/                      # Database related
+│   ├── examples/                 # SQL examples
 │   │   ├── example_user_management.sql
 │   │   ├── example_get_candlestick.sql
 │   │   └── example_websocket_ticker_mvp.sql
-│   ├── migrations/               # 数据库迁移
-│   ├── templates/                # SQL模板
-│   └── README.md                 # 数据库文档
+│   ├── migrations/               # Database migrations
+│   ├── templates/                # SQL templates
+│   └── README.md                 # Database documentation
 │
-├── scripts/                       # 辅助脚本
+├── scripts/                       # Helper scripts
 │   ├── export_candlestick_to_excel.py
 │   ├── merge_candlestick_cases.py
 │   ├── remove_duplicate_tests.py
 │   └── final_stats.py
 │
-├── docs/                          # 文档
+├── docs/                          # Documentation
 │   ├── FINAL_COMPLETION_REPORT.md
 │   ├── DB_POOL_OPTIMIZATION.md
 │   ├── ENVIRONMENT_SERVICE_ROUTING_IMPLEMENTATION.md
 │   └── candlestick_test_design.md
 │
-├── reports/                       # 测试报告
-│   ├── allure-results/           # Allure原始数据
-│   └── allure-report/            # Allure HTML报告
+├── reports/                       # Test reports
+│   ├── allure-results/           # Allure raw data
+│   └── allure-report/            # Allure HTML report
 │
-├── logs/                          # 日志文件
-│   ├── framework_*.log           # 框架日志
-│   └── errors_*.log              # 错误日志
+├── logs/                          # Log files
+│   ├── framework_*.log           # Framework logs
+│   └── errors_*.log              # Error logs
 │
-├── run.py                         # 主入口
-├── requirements.txt               # Python依赖
-├── .env                          # 环境配置（需创建）
-└── README.md                     # 本文档
+├── run.py                         # Main entry point
+├── requirements.txt               # Python dependencies
+├── .env                          # Environment config (to be created)
+└── README.md                     # This document
 ```
 
-## ⚡ 性能优化
+## ⚡ Performance Optimization
 
-### 数据库连接池优化
+### Database Connection Pool Optimization
 
-框架使用优化的连接池配置：
+Framework uses optimized connection pool configuration:
 
 ```python
-# 默认配置
-pool_size = 20              # 基础连接数
-max_overflow = 10           # 最大溢出连接
-pool_timeout = 30           # 获取连接超时(秒)
-pool_recycle = 3600         # 连接回收时间(秒)
-pool_pre_ping = True        # 连接前检测
+# Default configuration
+pool_size = 20              # Base connections
+max_overflow = 10           # Max overflow connections
+pool_timeout = 30           # Connection timeout (seconds)
+pool_recycle = 3600         # Connection recycle time (seconds)
+pool_pre_ping = True        # Pre-ping before checkout
 ```
 
-可通过环境变量调整：
+Configure via environment variables:
 
 ```bash
 DB_POOL_SIZE=20
@@ -587,210 +587,209 @@ DB_POOL_TIMEOUT=30
 DB_POOL_RECYCLE=3600
 ```
 
-### 并行执行优化
+### Parallel Execution Optimization
 
 ```bash
-# 根据CPU核心数自动调整
+# Auto-adjust based on CPU cores
 python run.py -n auto
 
-# 指定worker数量
+# Specify worker count
 python run.py -n 4
 
-# 建议配置
-# - 小规模测试(< 20个): -n 2
-# - 中规模测试(20-100个): -n 4
-# - 大规模测试(> 100个): -n 8 或 auto
+# Recommended configuration
+# - Small scale (< 20 tests): -n 2
+# - Medium scale (20-100 tests): -n 4
+# - Large scale (> 100 tests): -n 8 or auto
 ```
 
-### 性能指标
+### Performance Metrics
 
-| 指标 | 数值 |
-|-----|------|
-| 单个HTTP测试 | ~0.1-0.3s |
-| 单个WebSocket测试 | ~0.4s |
-| 16个测试并行执行 | ~5.4s |
-| 数据库连接池利用率 | ~20% |
-| 并发worker推荐 | 2-8 |
+| Metric | Value |
+|--------|-------|
+| Single HTTP test | ~0.1-0.3s |
+| Single WebSocket test | ~0.4s |
+| 16 tests parallel execution | ~5.4s |
+| DB connection pool utilization | ~20% |
+| Recommended concurrent workers | 2-8 |
 
-## 📚 文档资源
+## 📚 Documentation Resources
 
-### 核心文档
-- [数据库使用指南](database/README.md)
-- [测试框架完成报告](docs/FINAL_COMPLETION_REPORT.md)
-- [数据库连接池优化](docs/DB_POOL_OPTIMIZATION.md)
-- [环境服务路由实现](docs/ENVIRONMENT_SERVICE_ROUTING_IMPLEMENTATION.md)
-- [Candlestick测试设计](docs/candlestick_test_design.md)
+### Core Documentation
+- [Database Usage Guide](database/README.md)
+- [Test Framework Completion Report](docs/FINAL_COMPLETION_REPORT.md)
+- [Database Connection Pool Optimization](docs/DB_POOL_OPTIMIZATION.md)
+- [Environment Service Routing](docs/ENVIRONMENT_SERVICE_ROUTING_IMPLEMENTATION.md)
+- [Candlestick Test Design](docs/candlestick_test_design.md)
 
-### SQL示例
-- [用户管理测试](database/examples/example_user_management.sql)
-- [K线数据测试](database/examples/example_get_candlestick.sql)
-- [WebSocket Ticker测试](database/examples/example_websocket_ticker_mvp.sql)
-- [WebSocket负面测试](database/examples/example_websocket_negative_tests.sql)
+### SQL Examples
+- [User Management Tests](database/examples/example_user_management.sql)
+- [Candlestick Data Tests](database/examples/example_get_candlestick.sql)
+- [WebSocket Ticker Tests](database/examples/example_websocket_ticker_mvp.sql)
+- [WebSocket Negative Tests](database/examples/example_websocket_negative_tests.sql)
 
-### 快速参考
-- [SQL快速参考](database/quick_reference.sql)
-- [测试用例模板](database/templates/new_test_case_template.sql)
+### Quick Reference
+- [SQL Quick Reference](database/quick_reference.sql)
+- [Test Case Template](database/templates/new_test_case_template.sql)
 
-## 🎓 最佳实践
+## 🎓 Best Practices
 
-### 1. 测试用例设计
-- ✅ 使用清晰的命名约定
-- ✅ 合理使用标签分类（P0/P1/P2, smoke/regression）
-- ✅ 正面测试和负面测试分离
-- ✅ 边界值测试覆盖
+### 1. Test Case Design
+- ✅ Use clear naming conventions
+- ✅ Properly use tags for classification (P0/P1/P2, smoke/regression)
+- ✅ Separate positive and negative tests
+- ✅ Cover boundary value testing
 
-### 2. 数据集管理
-- ✅ 一个测试用例对应多个数据集
-- ✅ 使用 `is_active` 控制数据集启用/禁用
-- ✅ 使用 `environments` 关联测试环境
-- ✅ 使用 `validations_override` 覆盖特定场景的验证
+### 2. Dataset Management
+- ✅ One test case corresponds to multiple datasets
+- ✅ Use `is_active` to control dataset enable/disable
+- ✅ Use `environments` to associate test environments
+- ✅ Use `validations_override` to override validations for specific scenarios
 
-### 3. 环境配置
-- ✅ 不同服务使用不同环境
-- ✅ base_url 精确到服务级别
-- ✅ 使用环境变量管理敏感信息
+### 3. Environment Configuration
+- ✅ Use different environments for different services
+- ✅ Precise base_url to service level
+- ✅ Manage sensitive info via environment variables
 
-### 4. 验证规则
-- ✅ 基于实际API行为配置验证
-- ✅ 先测试后配置，避免假设
-- ✅ 使用curl验证边界场景
+### 4. Validation Rules
+- ✅ Configure validations based on actual API behavior
+- ✅ Test first, then configure - avoid assumptions
+- ✅ Use curl to verify boundary scenarios
 
-### 5. 调试技巧
-- ✅ 使用 `--debug-mode` 查看详细日志
-- ✅ 检查 `logs/` 目录的日志文件
-- ✅ 查看 Allure 报告的请求/响应详情
-- ✅ 在数据库中查询测试结果审计
+### 5. Debugging Tips
+- ✅ Use `--debug-mode` for detailed logs
+- ✅ Check log files in `logs/` directory
+- ✅ Review Allure report for request/response details
+- ✅ Query test result audit in database
 
-## 🤝 贡献指南
+## 🤝 Contributing
 
-### 分支管理
+### Branch Management
 
-- `main` - 稳定版本
-- `websocket` - WebSocket功能开发
-- `feature/*` - 新功能开发
-- `bugfix/*` - Bug修复
+- `main` - Stable version
+- `websocket` - WebSocket feature development
+- `feature/*` - New feature development
+- `bugfix/*` - Bug fixes
 
-### 提交规范
+### Commit Convention
 
 ```bash
-# 功能开发
-git commit -m "✨ feat: 添加新功能描述"
+# Feature development
+git commit -m "✨ feat: Add new feature description"
 
-# Bug修复
-git commit -m "🐛 fix: 修复问题描述"
+# Bug fix
+git commit -m "🐛 fix: Fix issue description"
 
-# 文档更新
-git commit -m "📝 docs: 更新文档"
+# Documentation update
+git commit -m "📝 docs: Update documentation"
 
-# 性能优化
-git commit -m "⚡ perf: 性能优化描述"
+# Performance optimization
+git commit -m "⚡ perf: Performance optimization description"
 
-# 代码重构
-git commit -m "♻️ refactor: 重构描述"
+# Code refactoring
+git commit -m "♻️ refactor: Refactoring description"
 ```
 
-### 开发流程
+### Development Workflow
 
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m '✨ feat: Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
+1. Fork the project
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m '✨ feat: Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Create Pull Request
 
-## 📊 测试覆盖
+## 📊 Test Coverage
 
-### 当前测试统计
+### Current Test Statistics
 
-- **总测试用例**: 20+
-- **HTTP测试**: 15+
-- **WebSocket测试**: 12+
-- **通过率**: 100%
-- **覆盖的API端点**: 10+
+- **Total Test Cases**: 20+
+- **HTTP Tests**: 15+
+- **WebSocket Tests**: 12+
+- **Pass Rate**: 100%
+- **API Endpoints Covered**: 10+
 
-### 测试场景
+### Test Scenarios
 
-| 类型 | 数量 | 说明 |
-|-----|------|------|
-| 正常流程测试 | 8 | Happy Path |
-| 负面测试 | 10 | 错误处理 |
-| 边界测试 | 5 | Edge Cases |
-| E2E测试 | 3 | 端到端流程 |
+| Type | Count | Description |
+|------|-------|-------------|
+| Normal Flow Tests | 8 | Happy Path |
+| Negative Tests | 10 | Error Handling |
+| Boundary Tests | 5 | Edge Cases |
+| E2E Tests | 3 | End-to-End Flow |
 
-## 🔍 故障排查
+## 🔍 Troubleshooting
 
-### 常见问题
+### Common Issues
 
-**Q: 数据库连接失败**
+**Q: Database connection failed**
 ```bash
-# 检查环境变量
+# Check environment variables
 cat .env
 
-# 测试数据库连接
+# Test database connection
 psql -h localhost -p 5432 -U postgres -d apitest
 ```
 
-**Q: 测试无法找到**
+**Q: Tests not found**
 ```sql
--- 检查数据集是否激活
+-- Check if datasets are active
 SELECT * FROM case_data_sets WHERE is_active = false;
 
--- 检查环境配置
+-- Check environment configuration
 SELECT * FROM test_environments;
 ```
 
-**Q: WebSocket连接超时**
+**Q: WebSocket connection timeout**
 ```bash
-# 检查网络连接
+# Check network connection
 curl -I wss://uat-stream.3ona.co/exchange/v1/market
 
-# 增加超时时间
-# 在步骤中设置更大的 timeout 值
+# Increase timeout
+# Set larger timeout value in step
 ```
 
-**Q: 并行执行失败**
+**Q: Parallel execution failed**
 ```bash
-# 减少worker数量
+# Reduce worker count
 python run.py -n 2
 
-# 检查数据库连接池配置
-# 确保 DB_POOL_SIZE >= worker数量
+# Check database connection pool config
+# Ensure DB_POOL_SIZE >= worker count
 ```
 
-## 📝 更新日志
+## 📝 Changelog
 
-### v2.0.0 (2025-10-13) - WebSocket 支持
-- ✨ 新增 WebSocket 测试支持
-- ✨ 实现环境服务路由
-- 🔧 优化数据库连接池
-- 📚 完善文档体系
+### v2.0.0 (2025-10-13) - WebSocket Support
+- ✨ Added WebSocket testing support
+- ✨ Implemented environment service routing
+- 🔧 Optimized database connection pool
+- 📚 Enhanced documentation system
 
-### v1.0.0 (2025-10-12) - 初始版本
-- ✨ 从 Behave 迁移到 Pytest
-- ✨ 实现 2表设计架构
-- ✨ 集成 Allure 报告
-- ✨ 添加 Loguru 日志系统
+### v1.0.0 (2025-10-12) - Initial Release
+- ✨ Migrated from Behave to Pytest
+- ✨ Implemented 2-table design architecture
+- ✨ Integrated Allure reporting
+- ✨ Added Loguru logging system
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 👥 作者
+## 👥 Authors
 
 **Hellen Zhu** - [GitHub](https://github.com/Hellen-Zhu)
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
-- Pytest 社区
-- Allure 报告系统
-- SQLAlchemy 团队
-- 所有贡献者
+- Pytest Community
+- Allure Report System
+- SQLAlchemy Team
+- All Contributors
 
-## 📞 联系方式
+## 📞 Contact
 
-- 项目主页: https://github.com/Hellen-Zhu/crypto-api-tests
-- 问题反馈: https://github.com/Hellen-Zhu/crypto-api-tests/issues
+- Project Homepage: https://github.com/Hellen-Zhu/crypto-api-tests
+- Issue Tracker: https://github.com/Hellen-Zhu/crypto-api-tests/issues
 
 ---
 
-⭐ 如果这个项目对您有帮助，请给我们一个 Star！
-
+⭐ If this project helps you, please give us a Star!
