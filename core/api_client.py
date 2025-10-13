@@ -40,12 +40,11 @@ class ApiClient:
         # Store resolved data set variables used in current test case
         self.resolved_data_set_variables = {}
 
-    def execute_steps(self, case_details: Dict[str, Any], app_db_conn=None):
+    def execute_steps(self, case_details: Dict[str, Any]):
         """
         Execute all steps under a test case template and apply correct validation override logic.
 
         :param case_details: Complete case information obtained from db_handler.get_case_details.
-        :param app_db_conn: (Optional) Connection to application database under test.
         """
         context = TestContext()
         data_set_variables = case_details.get('data_set_variables', {})
@@ -65,7 +64,7 @@ class ApiClient:
 
                 if protocol == 'http':
                     # Execute HTTP step (existing logic)
-                    self._execute_http_step(step, context, data_set_variables, validations_override, app_db_conn)
+                    self._execute_http_step(step, context, data_set_variables, validations_override)
 
                 elif protocol == 'websocket':
                     # Execute WebSocket step (new logic)
@@ -84,7 +83,7 @@ class ApiClient:
                 except Exception as e:
                     logger.warning(f"Error during WebSocket cleanup: {e}")
 
-    def _execute_http_step(self, step: Dict[str, Any], context: TestContext, data_set_variables: Dict, validations_override: Dict, app_db_conn=None):
+    def _execute_http_step(self, step: Dict[str, Any], context: TestContext, data_set_variables: Dict, validations_override: Dict):
         """
         Execute a single HTTP step (extracted from original execute_steps logic).
 
@@ -92,7 +91,6 @@ class ApiClient:
         :param context: Test context for variable storage
         :param data_set_variables: Variables from data set
         :param validations_override: Validation overrides from data set
-        :param app_db_conn: Optional database connection
         """
         step_order = step.get('step_order')
         step_description = step.get('description', f'Step {step_order}')
@@ -157,10 +155,18 @@ class ApiClient:
                     self.assertion_engine.execute_assertions(
                         response_data,
                         final_validations,
-                        app_db_conn=app_db_conn,
                         context=context,
                         data_set_vars=data_set_variables
                     )
+
+                    # Execute custom validations if present (e.g., for candlestick data)
+                    if "customValidations" in final_validations:
+                        self.assertion_engine.validate_candlestick_data(
+                            response_data,
+                            final_validations,
+                            context=context,
+                            data_set_vars=data_set_variables
+                        )
 
                 # 7. Extract and store output variables
                 outputs = step.get('outputs')

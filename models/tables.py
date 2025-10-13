@@ -48,12 +48,28 @@ class CaseDataSet(Base):
 # =================================================================
 
 class Environment(Base):
-    """测试环境配置表"""
+    """
+    Test environment configuration table.
+    Each row represents a specific service in a specific environment.
+
+    Example rows:
+    - (dev, user_svc, http://127.0.0.1:8788)
+    - (dev, exchange_svc, https://dev-api.3ona.co)
+    - (uat, websocket_svc, wss://uat-stream.3ona.co/exchange/v1/market)
+    """
     __tablename__ = 'test_environments'
+
+    __table_args__ = (
+        # Composite unique constraint on (name, service)
+        # Allows multiple rows per environment, one for each service
+        # e.g., dev can have user_svc, exchange_svc, websocket_svc
+        {'extend_existing': True}
+    )
+
     id = Column(Integer, primary_key=True)
-    name = Column(String(50), unique=True, nullable=False)
-    base_url = Column(String(255), nullable=False)
-    app_db_connection_string = Column(Text)
+    name = Column(String(50), nullable=False, index=True)  # Environment name: dev, uat
+    service = Column(String(50), nullable=False, index=True)  # Service name: user_svc, exchange_svc, websocket_svc
+    base_url = Column(String(255), nullable=False)  # Service-specific base URL or full WebSocket URL
     description = Column(Text)
     is_active = Column(Boolean, default=True)
 

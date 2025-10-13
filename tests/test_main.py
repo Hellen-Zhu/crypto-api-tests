@@ -3,7 +3,6 @@
 import pytest
 import allure
 from core.db_handler import get_test_cases_by_filter, get_case_details
-from core.api_client import ApiClient
 
 def pytest_generate_tests(metafunc):
     """
@@ -49,9 +48,10 @@ class TestApi:
     """
     所有数据驱动的API测试都通过这个类来执行。
     """
-    def test_run_case(self, test_case_run_data, api_client, app_db_connection, db_session_factory):
+    def test_run_case(self, test_case_run_data, api_client, db_session_factory):
         """
         这是一个测试模板方法，会被 pytest_generate_tests 多次调用。
+        api_client 的 base_url 已经通过 fixture 自动设置为当前测试用例对应的 service URL。
         """
         case_id, data_set_id, case_display_name, jira_id = test_case_run_data
 
@@ -62,4 +62,6 @@ class TestApi:
             if not full_case_details:
                 pytest.fail(f"无法找到 Case ID: {case_id} / DataSet ID: {data_set_id} 的详细信息")
 
-            api_client.execute_steps(full_case_details, app_db_conn=app_db_connection)
+            # api_client.base_url 已经由 base_url fixture 自动设置
+            # 不需要手动查询和设置
+            api_client.execute_steps(full_case_details)
