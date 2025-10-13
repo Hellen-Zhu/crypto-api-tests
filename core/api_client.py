@@ -227,8 +227,9 @@ class ApiClient:
             try:
                 if action == 'connect':
                     # Action: Connect to WebSocket server
-                    url = resolve_placeholders(step.get('url'), context, data_set_variables)
-                    timeout = step.get('timeout', 10)
+                    request = step.get('request', {})
+                    url = resolve_placeholders(request.get('url'), context, data_set_variables)
+                    timeout = request.get('timeout', 10)
 
                     request_details_dict = {"action": "connect", "url": url, "timeout": timeout}
                     allure.attach(json.dumps(request_details_dict, indent=2), name="WebSocket Connect", attachment_type=allure.attachment_type.JSON)
@@ -241,7 +242,8 @@ class ApiClient:
 
                 elif action == 'send':
                     # Action: Send message to WebSocket
-                    message = resolve_placeholders(step.get('message'), context, data_set_variables)
+                    request = step.get('request', {})
+                    message = resolve_placeholders(request.get('body'), context, data_set_variables)
 
                     request_details_dict = {"action": "send", "message": message}
                     allure.attach(json.dumps(request_details_dict, indent=2, ensure_ascii=False), name="WebSocket Send", attachment_type=allure.attachment_type.JSON)
@@ -251,8 +253,9 @@ class ApiClient:
 
                 elif action == 'wait':
                     # Action: Wait for messages and validate
-                    message_count = step.get('message_count', 1)
-                    timeout = step.get('timeout', 30)
+                    request = step.get('request', {})
+                    message_count = request.get('count', 1)
+                    timeout = request.get('timeout', 30)
 
                     request_details_dict = {"action": "wait", "message_count": message_count, "timeout": timeout}
                     allure.attach(json.dumps(request_details_dict, indent=2), name="WebSocket Wait", attachment_type=allure.attachment_type.JSON)

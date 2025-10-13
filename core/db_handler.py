@@ -174,10 +174,8 @@ def get_case_details(session, case_id, data_set_id):
         elif step_dict['protocol'] == 'websocket':
             step_dict.update({
                 'action': step.get('action'),
-                'url': step.get('url'),
-                'timeout': step.get('timeout'),
-                'message': step.get('message'),
-                'message_count': step.get('message_count')
+                # Include the entire request object for WebSocket steps
+                'request': step.get('request', {})
             })
 
         resolved_actions.append(step_dict)
