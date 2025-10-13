@@ -185,3 +185,51 @@ class AssertionEngine:
         matches = parse(json_path).find(body)
         assert len(matches) == 0, f"Path '{json_path}' was found, but was expected not to exist."
         logger.debug(f"Path '{json_path}' does not exist as expected.")
+
+    # ============================================================
+    # WebSocket-specific assertion methods (MVP)
+    # ============================================================
+
+    def execute_websocket_assertions(self, message: Dict[str, Any], validation_rules: Dict[str, Any], context=None, data_set_vars=None):
+        """
+        Execute assertions on WebSocket message (MVP version).
+
+        Reuses existing HTTP validation methods (notNull, body, containsText) for consistency.
+        WebSocket message is treated as a response body.
+
+        :param message: WebSocket message (dict)
+        :param validation_rules: Validation rules
+        :param context: Test context for placeholder resolution
+        :param data_set_vars: Data set variables for placeholder resolution
+        """
+        if not isinstance(validation_rules, dict):
+            pytest.fail(f"Validation rules must be a JSON object, but got {type(validation_rules).__name__}", pytrace=False)
+
+        if not message:
+            pytest.fail("WebSocket message is empty, cannot validate", pytrace=False)
+
+        failures = []
+
+        # Wrap message in response structure for compatibility with existing validators
+        websocket_response = {'body': message}
+
+        # --- Dispatch to existing validators (reuse HTTP validation logic) ---
+
+        if "notNull" in validation_rules:
+            self._dispatch_not_null(websocket_response, validation_rules, failures, context, data_set_vars)
+
+        if "body" in validation_rules:
+            self._dispatch_body_match(websocket_response, validation_rules, failures, context, data_set_vars)
+
+        if "containsText" in validation_rules:
+            self._dispatch_contains_text(websocket_response, validation_rules, failures, context, data_set_vars)
+
+        if "notExist" in validation_rules:
+            self._dispatch_not_exist(websocket_response, validation_rules, failures, context, data_set_vars)
+
+        # Note: expectedStatusCode and dbValidation are not applicable to WebSocket messages
+
+        if failures:
+            pytest.fail("\n".join(failures), pytrace=False)
+
+        logger.debug("WebSocket message validation passed")
