@@ -19,34 +19,36 @@ class AssertionEngine:
         pass
 
     def execute_assertions(self, response: Dict[str, Any], validation_rules: Dict[str, Any], context=None, data_set_vars=None):
-        if not isinstance(validation_rules, dict):
-            pytest.fail(f"Validation rules must be a JSON object, but got {type(validation_rules).__name__}", pytrace=False)
+        """Execute all validation rules with Allure reporting."""
+        with allure.step("Validations"):
+            if not isinstance(validation_rules, dict):
+                pytest.fail(f"Validation rules must be a JSON object, but got {type(validation_rules).__name__}", pytrace=False)
 
-        failures = []
+            failures = []
 
-        # --- Dispatch center: pass context required for parsing to each dispatcher ---
-        if "expectedStatusCode" in validation_rules:
-            self._dispatch_status_code(response, validation_rules, failures, context, data_set_vars)
+            # --- Dispatch center: pass context required for parsing to each dispatcher ---
+            if "expectedStatusCode" in validation_rules:
+                self._dispatch_status_code(response, validation_rules, failures, context, data_set_vars)
 
-        if "body" in validation_rules:
-            self._dispatch_body_match(response, validation_rules, failures, context, data_set_vars)
+            if "body" in validation_rules:
+                self._dispatch_body_match(response, validation_rules, failures, context, data_set_vars)
 
-        if "containsText" in validation_rules:
-            self._dispatch_contains_text(response, validation_rules, failures, context, data_set_vars)
+            if "containsText" in validation_rules:
+                self._dispatch_contains_text(response, validation_rules, failures, context, data_set_vars)
 
-        if "notNull" in validation_rules:
-            self._dispatch_not_null(response, validation_rules, failures, context, data_set_vars)
+            if "notNull" in validation_rules:
+                self._dispatch_not_null(response, validation_rules, failures, context, data_set_vars)
 
-        if "notExist" in validation_rules:
-            self._dispatch_not_exist(response, validation_rules, failures, context, data_set_vars)
+            if "notExist" in validation_rules:
+                self._dispatch_not_exist(response, validation_rules, failures, context, data_set_vars)
 
-        # Note: dbValidation is deprecated since app_db_connection_string was removed
-        if "dbValidation" in validation_rules:
-            with allure.step("⚠️ SKIPPED: DB Validation (deprecated - app database connection no longer supported)"):
-                logger.warning("dbValidation is deprecated and has been skipped. Please remove from test cases.")
+            # Note: dbValidation is deprecated since app_db_connection_string was removed
+            if "dbValidation" in validation_rules:
+                with allure.step("⚠️ SKIPPED: DB Validation (deprecated - app database connection no longer supported)"):
+                    logger.warning("dbValidation is deprecated and has been skipped. Please remove from test cases.")
 
-        if failures:
-            pytest.fail("\n".join(failures), pytrace=False)
+            if failures:
+                pytest.fail("\n".join(failures), pytrace=False)
 
     # --- Dispatcher Methods ---
 
@@ -366,34 +368,35 @@ class AssertionEngine:
         :param context: Test context for placeholder resolution
         :param data_set_vars: Data set variables for placeholder resolution
         """
-        if not isinstance(validation_rules, dict):
-            pytest.fail(f"Validation rules must be a JSON object, but got {type(validation_rules).__name__}", pytrace=False)
+        with allure.step("WebSocket Validations"):
+            if not isinstance(validation_rules, dict):
+                pytest.fail(f"Validation rules must be a JSON object, but got {type(validation_rules).__name__}", pytrace=False)
 
-        if not message:
-            pytest.fail("WebSocket message is empty, cannot validate", pytrace=False)
+            if not message:
+                pytest.fail("WebSocket message is empty, cannot validate", pytrace=False)
 
-        failures = []
+            failures = []
 
-        # Wrap message in response structure for compatibility with existing validators
-        websocket_response = {'body': message}
+            # Wrap message in response structure for compatibility with existing validators
+            websocket_response = {'body': message}
 
-        # --- Dispatch to existing validators (reuse HTTP validation logic) ---
+            # --- Dispatch to existing validators (reuse HTTP validation logic) ---
 
-        if "notNull" in validation_rules:
-            self._dispatch_not_null(websocket_response, validation_rules, failures, context, data_set_vars)
+            if "notNull" in validation_rules:
+                self._dispatch_not_null(websocket_response, validation_rules, failures, context, data_set_vars)
 
-        if "body" in validation_rules:
-            self._dispatch_body_match(websocket_response, validation_rules, failures, context, data_set_vars)
+            if "body" in validation_rules:
+                self._dispatch_body_match(websocket_response, validation_rules, failures, context, data_set_vars)
 
-        if "containsText" in validation_rules:
-            self._dispatch_contains_text(websocket_response, validation_rules, failures, context, data_set_vars)
+            if "containsText" in validation_rules:
+                self._dispatch_contains_text(websocket_response, validation_rules, failures, context, data_set_vars)
 
-        if "notExist" in validation_rules:
-            self._dispatch_not_exist(websocket_response, validation_rules, failures, context, data_set_vars)
+            if "notExist" in validation_rules:
+                self._dispatch_not_exist(websocket_response, validation_rules, failures, context, data_set_vars)
 
-        # Note: expectedStatusCode and dbValidation are not applicable to WebSocket messages
+            # Note: expectedStatusCode and dbValidation are not applicable to WebSocket messages
 
-        if failures:
-            pytest.fail("\n".join(failures), pytrace=False)
+            if failures:
+                pytest.fail("\n".join(failures), pytrace=False)
 
-        logger.debug("WebSocket message validation passed")
+            logger.debug("WebSocket message validation passed")
