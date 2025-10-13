@@ -78,3 +78,7 @@ coverage.xml
 # Backup files
 *.backup
 *.bak
+
+database/
+
+migrations/

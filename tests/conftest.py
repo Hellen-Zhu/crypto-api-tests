@@ -4,11 +4,9 @@ import pytest
 import uuid
 import datetime
 import os
-from sqlalchemy import create_engine
 
 from core import db_handler
 from core import result_writer
-from models.tables import Environment
 from core.api_client import ApiClient
 from core.logger_config import logger
 
@@ -150,6 +148,82 @@ def pytest_addoption(parser):
     parser.addoption("--debug-mode", action="store_true", default=False)
 
 # =================================================================
+# 2. Cache Loading Helper Functions
+# Load configurations into memory to avoid repeated database queries
+# =================================================================
+
+def _load_environment_configs(db_session_factory, env_name: str) -> dict:
+    """
+    Load all service configurations for specified environment into cache.
+
+    This function queries the database once to load all service configurations
+    for the current environment, then returns a dictionary for O(1) lookups.
+
+    Args:
+        db_session_factory: SQLAlchemy session factory
+        env_name: Environment name (e.g., 'dev', 'uat')
+
+    Returns:
+        dict: {service_name: base_url} mapping
+        Example: {'user_svc': 'http://127.0.0.1:8788',
+                  'exchange_svc': 'https://uat-api.3ona.co',
+                  'websocket_svc': 'wss://uat-stream.3ona.co/exchange/v1/market'}
+    """
+    import time
+    from models.tables import Environment
+
+    start_time = time.time()
+
+    with db_session_factory() as session:
+        configs = session.query(Environment).filter(
+            Environment.name == env_name,
+            Environment.is_active == True
+        ).all()
+
+        cache = {config.service: config.base_url for config in configs}
+
+    elapsed = time.time() - start_time
+    logger.info(
+        f"📦 Loaded environment config cache: "
+        f"{len(cache)} services for '{env_name}' in {elapsed:.3f}s"
+    )
+    logger.debug(f"Available services: {list(cache.keys())}")
+
+    return cache
+
+
+def _load_case_service_mappings(db_session_factory) -> dict:
+    """
+    Load all test case to service mappings into cache.
+
+    This function queries the database once to load all test case IDs and their
+    corresponding service names, enabling fast lookups during test execution.
+
+    Args:
+        db_session_factory: SQLAlchemy session factory
+
+    Returns:
+        dict: {case_id: service_name} mapping
+        Example: {1: 'user_svc', 7: 'user_svc', 10: 'exchange_svc', 13: 'websocket_svc'}
+    """
+    import time
+    from models.tables import ApiAutoCase
+
+    start_time = time.time()
+
+    with db_session_factory() as session:
+        cases = session.query(ApiAutoCase.id, ApiAutoCase.service).all()
+        cache = {case_id: service for case_id, service in cases}
+
+    elapsed = time.time() - start_time
+    logger.info(
+        f"📦 Loaded case-service mapping cache: "
+        f"{len(cache)} test cases in {elapsed:.3f}s"
+    )
+
+    return cache
+
+# =================================================================
 # 3. Pytest Fixtures
 # Provide reusable resources for test functions
 # =================================================================
@@ -168,50 +242,135 @@ def db_session_factory(request):
     return factory
 
 @pytest.fixture(scope="session")
-def test_environment(request, db_session_factory):
-    """Load complete Environment configuration object from database based on --env parameter."""
+def test_environment(request):
+    """
+    Return environment name from --env parameter.
+    """
     env_name = request.config.getoption("--env")
-    with db_session_factory() as session:
-        env_config = session.query(Environment).filter(
-            Environment.name == env_name, Environment.is_active == True
-        ).first()
-
-    if not env_config:
-        pytest.fail(f"Active environment configuration named '{env_name}' not found in test_environments table")
-
     logger.info(f"Running tests against Environment: '{env_name}'")
-    return env_config
+    return env_name
 
 @pytest.fixture(scope="session")
-def base_url(test_environment):
-    """Get base_url from test_environment fixture"""
-    logger.info(f"Using base_url: {test_environment.base_url}")
-    return test_environment.base_url
+def environment_config_cache(db_session_factory, test_environment):
+    """
+    Session-level cache of environment configurations.
+
+    Loads once per worker process at startup, then all tests read from memory.
+    Maps service names to their base URLs for the current environment.
+
+    Performance Benefits:
+    - Without cache: Each test queries database (e.g., 500 tests = 500 queries)
+    - With cache: One query per worker at startup (e.g., 4 workers = 4 queries)
+    - Improvement: ~99% reduction in database queries
+
+    Parallel Execution:
+    - Each worker process creates its own cache instance
+    - No cache conflicts between workers (independent memory spaces)
+    - Small overhead: N workers = N cache loads (acceptable for massive test savings)
+
+    Returns:
+        dict: {service_name: base_url}
+        Example: {'user_svc': 'http://127.0.0.1:8788',
+                  'exchange_svc': 'https://uat-api.3ona.co'}
+    """
+    logger.info(f"🔄 Initializing environment config cache for worker process...")
+    return _load_environment_configs(db_session_factory, test_environment)
+
 
 @pytest.fixture(scope="session")
-def app_db_connection(test_environment):
-    """Create and provide connection to application database based on current test environment."""
-    conn_string = test_environment.app_db_connection_string
-    if not conn_string:
-        yield None
-        return
+def case_service_cache(db_session_factory):
+    """
+    Session-level cache of test case to service mappings.
 
-    engine, connection = None, None
-    try:
-        engine = create_engine(conn_string)
-        connection = engine.connect()
-        logger.info(f"Successfully connected to application DB for env '{test_environment.name}'")
-        yield connection
-    except Exception as e:
-        pytest.fail(f"Unable to connect to application database: {e}", pytrace=False)
-    finally:
-        if connection: connection.close()
-        if engine: engine.dispose()
-        logger.info("Application DB connection closed")
+    Loads once per worker process at startup, then all tests read from memory.
+    Maps test case IDs to their service names for fast routing.
+
+    Performance Benefits:
+    - Without cache: Each test queries database (e.g., 500 tests = 500 queries)
+    - With cache: One query per worker at startup (e.g., 4 workers = 4 queries)
+    - Improvement: ~99% reduction in database queries
+
+    Parallel Execution:
+    - Each worker process creates its own cache instance
+    - No cache conflicts between workers (independent memory spaces)
+    - Memory usage: Minimal (~50 bytes per test case)
+
+    Returns:
+        dict: {case_id: service_name}
+        Example: {1: 'user_svc', 10: 'exchange_svc', 13: 'websocket_svc'}
+    """
+    logger.info(f"🔄 Initializing case-service mapping cache for worker process...")
+    return _load_case_service_mappings(db_session_factory)
+
+
+@pytest.fixture
+def base_url(request, environment_config_cache, case_service_cache):
+    """
+    Dynamically get base_url for current test case based on its service.
+
+    This fixture uses session-level caches to avoid database queries.
+    All data is read from memory after initial cache loading at worker startup.
+
+    Execution Flow:
+    1. Get case_id from test parameters
+    2. Lookup service name from case_service_cache (memory, O(1))
+    3. Lookup base_url from environment_config_cache (memory, O(1))
+    4. Return base_url (zero database queries per test)
+
+    Performance:
+    - Database queries per test: 0 (after cache initialization)
+    - Memory lookups per test: 2 (both O(1) dict operations)
+    - Typical lookup time: <0.001ms
+
+    Error Handling:
+    - Missing test case: Provides total cached cases count for debugging
+    - Missing service config: Lists available services to help troubleshooting
+
+    Returns:
+        str: Base URL for the service of current test case
+    """
+    # Get test case run data from the parametrized test
+    test_case_run_data = request.node.callspec.params.get('test_case_run_data')
+
+    if not test_case_run_data:
+        # Fallback for non-parametrized tests (should not happen in normal flow)
+        return "http://placeholder"
+
+    case_id = test_case_run_data[0]
+
+    # Step 1: Get service name from cache (no database query)
+    service_name = case_service_cache.get(case_id)
+    if not service_name:
+        available_cases = len(case_service_cache)
+        pytest.fail(
+            f"Test case {case_id} not found in cache.\n"
+            f"Total cached cases: {available_cases}\n"
+            f"Please verify the test case exists in api_auto_cases table.",
+            pytrace=False
+        )
+
+    # Step 2: Get base_url from cache (no database query)
+    base_url_value = environment_config_cache.get(service_name)
+    if not base_url_value:
+        available_services = list(environment_config_cache.keys())
+        pytest.fail(
+            f"No active configuration found for service '{service_name}'.\n"
+            f"Available services: {available_services}\n"
+            f"Please check test_environments table for missing configuration.",
+            pytrace=False
+        )
+
+    # Log cache hit (debug level to avoid noise in normal runs)
+    logger.debug(
+        f"[Cache Hit] case_id={case_id} → service={service_name} → url={base_url_value}"
+    )
+
+    return base_url_value
 
 @pytest.fixture
 def api_client(base_url):
     """
     Function-level fixture that creates an independent ApiClient instance for each test case.
+    Base URL is automatically determined based on test case's service.
     """
     return ApiClient(base_url)

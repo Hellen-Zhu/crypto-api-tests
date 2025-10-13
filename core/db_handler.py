@@ -149,19 +149,38 @@ def get_case_details(session, case_id, data_set_id):
         raise ValueError(f"Test case {case_id} has no steps defined in parameters.steps")
 
     # Convert to the format expected by api_client
+    # Support both HTTP and WebSocket protocols
     resolved_actions = []
     for step in steps_list:
-        resolved_actions.append({
-            'step_order': step.get('order'),
+        step_dict = {
+            'step_order': step.get('order') or step.get('step_order'),
             'description': step.get('description', ''),
-            'http_method': step.get('method'),
-            'api_url_path': step.get('path'),
-            'headers': step.get('request', {}).get('headers'),
-            'params': step.get('request', {}).get('params'),
-            'body': step.get('request', {}).get('body'),
+            'protocol': step.get('protocol', 'http'),  # Default to HTTP for backward compatibility
             'validations': step.get('validations'),
             'outputs': step.get('outputs')
-        })
+        }
+
+        # HTTP-specific fields
+        if step_dict['protocol'] == 'http':
+            step_dict.update({
+                'http_method': step.get('method'),
+                'api_url_path': step.get('path'),
+                'headers': step.get('request', {}).get('headers'),
+                'params': step.get('request', {}).get('params'),
+                'body': step.get('request', {}).get('body')
+            })
+
+        # WebSocket-specific fields
+        elif step_dict['protocol'] == 'websocket':
+            step_dict.update({
+                'action': step.get('action'),
+                'url': step.get('url'),
+                'timeout': step.get('timeout'),
+                'message': step.get('message'),
+                'message_count': step.get('message_count')
+            })
+
+        resolved_actions.append(step_dict)
 
     # Return unified structure
     case_details = {
