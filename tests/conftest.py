@@ -5,10 +5,10 @@ import uuid
 import datetime
 import os
 
-from core import db_handler
-from core import result_writer
-from core.api_client import ApiClient
-from core.logger_config import logger
+from src.database import handler as db_handler
+from src.database import result_writer
+from src.client.api_client import ApiClient
+from src.common.logger import logger
 
 # =================================================================
 # 1. Pytest Hooks
@@ -116,7 +116,10 @@ def pytest_runtest_makereport(item, call):
 
             if run_id and client_instance and session_factory:
                 # Get resolved variables used in this run
-                variables = client_instance.resolved_data_set_variables
+                variables = getattr(client_instance, 'resolved_data_set_variables', {})
+
+                # Get audit trail
+                audit_trail = getattr(client_instance, 'audit_trail', [])
 
                 with session_factory() as db_sess:
                     # Write individual case audit and get its ID
@@ -127,9 +130,9 @@ def pytest_runtest_makereport(item, call):
 
                     # If in debug mode, write detailed steps
                     is_debug = item.config.getoption("--debug-mode")
-                    if is_debug and audit_case_id and client_instance.audit_trail:
+                    if is_debug and audit_case_id and audit_trail:
                         result_writer.write_debug_log(
-                            db_sess, audit_case_id, client_instance.audit_trail
+                            db_sess, audit_case_id, audit_trail
                         )
         except Exception as e:
             logger.error(f"Failed to write result for item {item.name}: {e}")
@@ -170,7 +173,7 @@ def _load_environment_configs(db_session_factory, env_name: str) -> dict:
                   'websocket_svc': 'wss://uat-stream.3ona.co/exchange/v1/market'}
     """
     import time
-    from models.tables import Environment
+    from src.database.models import Environment
 
     start_time = time.time()
 
@@ -196,23 +199,23 @@ def _load_case_service_mappings(db_session_factory) -> dict:
     """
     Load all test case to service mappings into cache.
 
-    This function queries the database once to load all test case IDs and their
-    corresponding service names, enabling fast lookups during test execution.
+    Single-table design: Directly query service from api_auto_cases.
 
     Args:
         db_session_factory: SQLAlchemy session factory
 
     Returns:
         dict: {case_id: service_name} mapping
-        Example: {1: 'user_svc', 7: 'user_svc', 10: 'exchange_svc', 13: 'websocket_svc'}
+        Example: {1: 'exchange_svc', 10: 'exchange_svc', 13: 'websocket_svc'}
     """
     import time
-    from models.tables import ApiAutoCase
+    from src.database.models import ApiAutoCase
 
     start_time = time.time()
 
     with db_session_factory() as session:
-        cases = session.query(ApiAutoCase.id, ApiAutoCase.service).all()
+        cases = session.query(ApiAutoCase.id, ApiAutoCase.service)\
+            .filter(ApiAutoCase.is_active == True).all()
         cache = {case_id: service for case_id, service in cases}
 
     elapsed = time.time() - start_time
@@ -282,13 +285,13 @@ def case_service_cache(db_session_factory):
     """
     Session-level cache of test case to service mappings.
 
+    Single-table design: Maps test case IDs to their service names.
     Loads once per worker process at startup, then all tests read from memory.
-    Maps test case IDs to their service names for fast routing.
 
     Performance Benefits:
-    - Without cache: Each test queries database (e.g., 500 tests = 500 queries)
+    - Without cache: Each test queries database (e.g., 43 tests = 43 queries)
     - With cache: One query per worker at startup (e.g., 4 workers = 4 queries)
-    - Improvement: ~99% reduction in database queries
+    - Improvement: ~90% reduction in database queries
 
     Parallel Execution:
     - Each worker process creates its own cache instance
@@ -297,7 +300,7 @@ def case_service_cache(db_session_factory):
 
     Returns:
         dict: {case_id: service_name}
-        Example: {1: 'user_svc', 10: 'exchange_svc', 13: 'websocket_svc'}
+        Example: {1: 'exchange_svc', 10: 'exchange_svc', 13: 'websocket_svc'}
     """
     logger.info(f"🔄 Initializing case-service mapping cache for worker process...")
     return _load_case_service_mappings(db_session_factory)
@@ -308,7 +311,7 @@ def base_url(request, environment_config_cache, case_service_cache):
     """
     Dynamically get base_url for current test case based on its service.
 
-    This fixture uses session-level caches to avoid database queries.
+    Single-table design: Uses session-level caches to avoid database queries.
     All data is read from memory after initial cache loading at worker startup.
 
     Execution Flow:
@@ -370,7 +373,9 @@ def base_url(request, environment_config_cache, case_service_cache):
 @pytest.fixture
 def api_client(base_url):
     """
-    Function-level fixture that creates an independent ApiClient instance for each test case.
+    Function-level fixture that creates an ApiClient instance for each test case.
     Base URL is automatically determined based on test case's service.
+
+    Uses enhanced placeholder system with built-in functions.
     """
     return ApiClient(base_url)

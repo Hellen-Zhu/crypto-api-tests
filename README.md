@@ -28,7 +28,6 @@
 
 ### 🌟 Smart Features
 - **Placeholder Resolution** - `{{@variable}}` for dataset variables, `{{step_X.response.body.field}}` for inter-step passing
-- **Variable Extraction** - JSONPath extraction of response data for subsequent steps
 - **Logging System** - Loguru colored logs, auto-rotation, separate error storage
 - **Debug Mode** - Detailed audit logs written to database
 
@@ -55,8 +54,8 @@
 │  │   │  ├─ path   │           │                  │    │
 │  │   │  ├─ params │           │ - name           │    │
 │  │   │  ├─ body   │           │ - base_url       │    │
-│  │   │  ├─ validations        │ - services[]     │    │
-│  │   │  └─ outputs│           │ - is_active      │    │
+│  │   │  └─ validations        │ - services[]     │    │
+│  │               │           │ - is_active      │    │
 │  └─────────────────┘           └─────────────────┘    │
 └─────────────────────────────────────────────────────────┘
                            ↓

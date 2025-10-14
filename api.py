@@ -14,8 +14,8 @@ import sys
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-from core import db_handler
-from models.tables import AutoProgress
+from src.database import handler as db_handler
+from src.database.models import AutoProgress
 from dotenv import load_dotenv
 
 # --- TaaS Service Environment Loading Logic ---
@@ -30,7 +30,7 @@ try:
         # If .env file not found, service cannot connect to database, throw exception
         raise FileNotFoundError(f"TaaS service startup failed: .env configuration file not found in root directory.")
 
-    db_handler.initialize_session()
+    Session = db_handler.initialize_session()
     print("--- TaaS: Database session initialized successfully. ---")
 except Exception as e:
     print(f"--- TaaS FATAL ERROR: Could not initialize database session: {e} ---")
@@ -90,7 +90,7 @@ def execute_pytest_in_background(run_id: str, command: list):
 
     # Update status to RUNNING
     try:
-        with db_handler.Session() as session:
+        with Session() as session:
             progress_record = session.query(AutoProgress).filter_by(runid=run_id).first()
             if progress_record:
                 progress_record.task_status = 'RUNNING'
@@ -145,7 +145,7 @@ async def trigger_test_run(request: TestRunRequest, background_tasks: Background
 
     # Pre-create a PENDING record in database
     try:
-        with db_handler.Session() as session:
+        with Session() as session:
             progress_record = AutoProgress(
                 runid=run_id,
                 task_status='PENDING',
@@ -166,6 +166,6 @@ async def trigger_test_run(request: TestRunRequest, background_tasks: Background
     return {
         "message": "Test run accepted and scheduled.",
         "run_id": run_id,
-        "status_url": app.url_path_for("get_run_status", run_id=run_id)
+        "status_url": f"/run-status/{run_id}"
     }
 

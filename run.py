@@ -5,7 +5,7 @@ import argparse
 import os
 import sys
 from dotenv import load_dotenv
-from core.logger_config import logger
+from src.common.logger import logger
 
 # =================================================================
 # 1. Global Configuration Loading
@@ -48,7 +48,7 @@ def main():
     parser.add_argument(
         "-n", "--parallel",
         type=str,
-        default=parallel_from_os,
+        default=None,
         help=f"Number of parallel processes (e.g., 4, 8, or 'auto').\n"
              f"Priority: Command-line > Environment Variable PYTEST_PARALLEL_WORKERS (Current: {parallel_from_os})."
     )
@@ -67,7 +67,7 @@ def main():
 
     # 3. Determine final configuration based on priority strategy
     final_env = args.env or env_from_os or DEFAULT_ENV
-    final_parallel = args.parallel or parallel_from_os
+    final_parallel = args.parallel  # Only use command-line arg, not environment variable
 
     logger.info(f"Final environment for this run: {final_env}")
     logger.info(f"Source: {'Command-line' if args.env else ('Environment Variable' if env_from_os else 'Hardcoded Default')}")

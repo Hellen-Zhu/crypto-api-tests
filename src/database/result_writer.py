@@ -3,12 +3,12 @@
 import datetime
 import os
 from sqlalchemy import func, case
-from models.tables import AutoProgress, AutoCaseAudit, AutoTestAudit
-from core.logger_config import logger
+from src.database.models import AutoProgress, AutoCaseAudit, AutoTestAudit
+from src.common.logger import logger
 
 def create_run_progress(session, run_id, env_info):
     """
-    在测试开始时，创建一条初始的总览记录。
+    Create an initial progress record at the start of the test run.
     :param session: SQLAlchemy session object.
     :param run_id: The unique ID for this test run.
     :param env_info: A dict containing env, component, tags.
@@ -32,7 +32,7 @@ def create_run_progress(session, run_id, env_info):
 
 def write_case_audit(session, run_id, case_id, data_set_id, jira_id, display_name, variables, report):
     """
-    为单个测试场景写入结果到 auto_case_audit 表。
+    Write test case result to auto_case_audit table.
     :param session: SQLAlchemy session object.
     :param report: Pytest TestReport object.
     :return: The ID of the newly created audit record, or None on failure.
@@ -53,7 +53,7 @@ def write_case_audit(session, run_id, case_id, data_set_id, jira_id, display_nam
     try:
         session.add(audit_record)
         session.commit()
-        return audit_record.id # 返回新创建记录的ID
+        return audit_record.id # Return the ID of the newly created record
     except Exception as e:
         logger.error(f"Failed to write case audit result: {e}")
         session.rollback()
@@ -61,7 +61,7 @@ def write_case_audit(session, run_id, case_id, data_set_id, jira_id, display_nam
 
 def write_debug_log(session, audit_case_id, audit_trail):
     """
-    将详细的步骤审计日志写入 auto_test_audit 表。
+    Write detailed step audit logs to auto_test_audit table.
     :param session: SQLAlchemy session object.
     :param audit_case_id: The primary key of the parent auto_case_audit record.
     :param audit_trail: A list of step dictionaries from ApiClient.
@@ -88,14 +88,14 @@ def write_debug_log(session, audit_case_id, audit_trail):
 
 def update_run_summary(session, run_id, end_time, status):
     """
-    从 auto_case_audit 表中汇总数据，并更新 auto_progress 表。
+    Aggregate data from auto_case_audit table and update auto_progress table.
     :param session: SQLAlchemy session object.
     :param run_id: The unique ID for this test run.
     :param end_time: The timestamp when the session finished.
     :param status: The final status ('PASSED' or 'FAILED').
     """
     try:
-        # 1. 从精细结果表中进行聚合查询
+        # 1. Perform aggregation query from detailed result table
         stats = session.query(
             func.count(AutoCaseAudit.id).label("total"),
             func.sum(case((AutoCaseAudit.run_status == 'passed', 1), else_=0)).label("passed"),
@@ -103,7 +103,7 @@ def update_run_summary(session, run_id, end_time, status):
             func.sum(case((AutoCaseAudit.run_status == 'skipped', 1), else_=0)).label("skipped")
         ).filter(AutoCaseAudit.runid == run_id).one()
 
-        # 2. 找到总览记录并更新
+        # 2. Find and update the progress record
         progress_record = session.query(AutoProgress).filter_by(runid=run_id).first()
         if progress_record:
             progress_record.total_cases = stats.total

@@ -7,44 +7,48 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import declarative_base, relationship
 
-# 创建所有ORM类的基类
+# Create base class for all ORM classes
 Base = declarative_base()
 
 # =================================================================
-# 1. 测试用例定义相关的表 (Test Case Definition Tables)
+# 1. Test Case Definition Tables
 # =================================================================
 
 class ApiAutoCase(Base):
-    """Test case template definition table (2-table design)"""
+    """
+    Unified test case definition table (single-table design)
+    Each row represents a complete, independent test case
+    """
     __tablename__ = 'api_auto_cases'
+
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
+
+    # Classification fields
     service = Column(String(100), nullable=False, index=True)
     module = Column(String(100), index=True)
     component = Column(String(100), index=True)
     tags = Column(ARRAY(Text), index=True)
-    author = Column(String(50))
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    parameters = Column(JSONB, nullable=False)  # All test steps stored in JSONB column
-    data_sets = relationship("CaseDataSet", back_populates="case", cascade="all, delete-orphan")
 
-class CaseDataSet(Base):
-    """参数化用例的数据集表 (点餐单)"""
-    __tablename__ = 'case_data_sets'
-    id = Column(Integer, primary_key=True)
-    case_id = Column(Integer, ForeignKey('api_auto_cases.id'), nullable=False)
-    data_set_name = Column(String(255), nullable=False)
-    variables = Column(JSONB, nullable=False)
-    validations_override = Column(JSONB, nullable=True)
-    environments = Column(ARRAY(Text), nullable=True, index=True)
+    # Environment targeting
+    environments = Column(ARRAY(Text), index=True)
+
+    # External references
     jira_id = Column(String(50), unique=True)
-    tags = Column(ARRAY(Text))
+    author = Column(String(50))
+
+    # Core test configuration (consolidated)
+    # Structure: {"variables": {...}, "steps": [...], "validations": {...}}
+    test_config = Column(JSONB, nullable=False)
+
+    # Status and metadata
     is_active = Column(Boolean, default=True)
-    case = relationship("ApiAutoCase", back_populates="data_sets")
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
 # =================================================================
-# 2. 测试配置相关的表 (Test Configuration Tables)
+# 2. Test Configuration Tables
 # =================================================================
 
 class Environment(Base):
@@ -74,11 +78,11 @@ class Environment(Base):
     is_active = Column(Boolean, default=True)
 
 # =================================================================
-# 3. 测试结果记录相关的表 (Test Result Tables)
+# 3. Test Result Tables
 # =================================================================
 
 class AutoProgress(Base):
-    """测试运行的概要信息表"""
+    """Test run summary information table"""
     __tablename__ = 'auto_progress'
     id = Column(Integer, primary_key=True)
     runid = Column(String(50))
@@ -99,7 +103,7 @@ class AutoProgress(Base):
     update_time = Column(TIMESTAMP)
 
 class AutoCaseAudit(Base):
-    """单个测试场景的详细结果审计表"""
+    """Detailed test case result audit table"""
     __tablename__ = 'auto_case_audit'
     id = Column(Integer, primary_key=True)
     runid = Column(String(50), nullable=False, index=True)
@@ -115,7 +119,7 @@ class AutoCaseAudit(Base):
     debug_logs = relationship("AutoTestAudit", back_populates="case_audit", cascade="all, delete-orphan")
 
 class AutoTestAudit(Base):
-    """Debug模式下每个步骤的详细交互日志表"""
+    """Detailed step-by-step interaction log table for debug mode"""
     __tablename__ = 'auto_test_audit'
     id = Column(Integer, primary_key=True)
     audit_case_id = Column(Integer, ForeignKey('auto_case_audit.id'), nullable=False)

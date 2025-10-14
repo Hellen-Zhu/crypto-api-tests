@@ -6,8 +6,8 @@ import allure
 from typing import Dict, List, Any
 from jsonpath_ng import parse
 from sqlalchemy import text
-from utils.placeholder_parser import resolve_placeholders
-from core.logger_config import logger
+from src.engine.placeholder_resolver import resolve_placeholders
+from src.common.logger import logger
 
 
 class AssertionEngine:

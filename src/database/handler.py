@@ -4,20 +4,20 @@ import os
 from sqlalchemy import create_engine, or_, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
-from models.tables import ApiAutoCase, CaseDataSet, Environment
-from core.logger_config import logger
+from src.database.models import ApiAutoCase, Environment
+from src.common.logger import logger
 
 def get_db_engine():
     """
     Create and return database engine with optimized connection pool configuration.
 
     Connection Pool Settings:
-    - pool_size: 20 (基础连接池大小，适合中等并发)
-    - max_overflow: 10 (最多额外创建10个临时连接)
-    - pool_timeout: 30 (等待连接的最长时间)
-    - pool_recycle: 3600 (1小时后回收连接，避免数据库超时)
-    - pool_pre_ping: True (使用前检查连接有效性)
-    - echo_pool: False (不输出连接池调试信息)
+    - pool_size: 20 (base connection pool size, suitable for medium concurrency)
+    - max_overflow: 10 (maximum of 10 additional temporary connections)
+    - pool_timeout: 30 (maximum wait time for connection)
+    - pool_recycle: 3600 (recycle connections after 1 hour to avoid database timeout)
+    - pool_pre_ping: True (check connection validity before use)
+    - echo_pool: False (do not output connection pool debug info)
     """
     required_vars = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_NAME', 'DB_PASSWORD']
     for var in required_vars:
@@ -29,7 +29,7 @@ def get_db_engine():
         f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
     )
 
-    # 从环境变量获取连接池配置，或使用默认值
+    # Get connection pool configuration from environment variables, or use default values
     pool_size = int(os.getenv('DB_POOL_SIZE', 20))
     max_overflow = int(os.getenv('DB_MAX_OVERFLOW', 10))
     pool_timeout = int(os.getenv('DB_POOL_TIMEOUT', 30))
@@ -46,11 +46,11 @@ def get_db_engine():
         pool_pre_ping=True,
         echo_pool=False,
         connect_args={
-            'connect_timeout': 10,  # 连接超时时间
+            'connect_timeout': 10,  # Connection timeout
         }
     )
 
-    # 注册连接池事件监听器（用于调试和监控）
+    # Register connection pool event listeners (for debugging and monitoring)
     @event.listens_for(engine, "connect")
     def receive_connect(dbapi_conn, connection_record):
         logger.debug(f"New database connection established: {id(dbapi_conn)}")
@@ -93,60 +93,70 @@ def get_pool_status(engine):
     }
 
 def get_test_cases_by_filter(session, env: str, service=None, module=None, component=None, tags=None, jira_id=None, case_id=None):
-    """Get the list of test scenarios to run based on all filter conditions."""
+    """
+    Get the list of test cases to run based on all filter conditions.
+    Single-table design: each row is an independent test case.
+    """
     query = session.query(
         ApiAutoCase.id,
-        CaseDataSet.id,
         ApiAutoCase.name,
-        CaseDataSet.data_set_name,
-        CaseDataSet.jira_id
-    ).join(ApiAutoCase, ApiAutoCase.id == CaseDataSet.case_id).filter(CaseDataSet.is_active == True)
+        ApiAutoCase.jira_id
+    ).filter(ApiAutoCase.is_active == True)
 
+    # Environment filter
     query = query.filter(
         or_(
-            CaseDataSet.environments == None,
-            CaseDataSet.environments == [],
-            CaseDataSet.environments.any(env)
+            ApiAutoCase.environments == None,
+            ApiAutoCase.environments == [],
+            ApiAutoCase.environments.any(env)
         )
     )
 
+    # Apply filters
     if service: query = query.filter(ApiAutoCase.service == service)
     if module: query = query.filter(ApiAutoCase.module == module)
     if component: query = query.filter(ApiAutoCase.component == component)
     if tags:
         tag_list = [tag.strip() for tag in tags.split(',')]
         query = query.filter(ApiAutoCase.tags.contains(tag_list))
-    if jira_id: query = query.filter(CaseDataSet.jira_id == jira_id)
+    if jira_id: query = query.filter(ApiAutoCase.jira_id == jira_id)
     if case_id: query = query.filter(ApiAutoCase.id == case_id)
 
     results = query.all()
-    return [(row[0], row[1], f"{row[2]} [{row[3]}]", row[4]) for row in results]
+    # Return format: (case_id, data_set_id, display_name, jira_id)
+    # Note: data_set_id is now same as case_id since we use single table
+    return [(row.id, row.id, row.name, row.jira_id) for row in results]
 
 def get_case_details(session, case_id, data_set_id):
     """
-    Get complete detailed information for a single test scenario.
+    Get complete detailed information for a single test case.
 
-    Uses the 2-table design where steps are stored in api_auto_cases.parameters JSONB column.
+    Single-table design: all information (steps, variables, validations)
+    is stored in the test_config JSONB column.
+
+    Note: data_set_id parameter is kept for backward compatibility but
+    is ignored since case_id and data_set_id are now the same.
     """
     test_case = session.query(ApiAutoCase).filter(ApiAutoCase.id == case_id).first()
-    data_set = session.query(CaseDataSet).filter(CaseDataSet.id == data_set_id).first()
 
-    if not test_case or not data_set:
+    if not test_case:
         return None
 
-    # Validate that test case has parameters
-    if not hasattr(test_case, 'parameters') or not test_case.parameters:
+    # Validate that test case has test_config
+    if not hasattr(test_case, 'test_config') or not test_case.test_config:
         raise ValueError(
-            f"Test case {case_id} does not have a 'parameters' column. "
-            "Please ensure all test cases use the 2-table design with steps stored in JSONB."
+            f"Test case {case_id} does not have a 'test_config' column. "
+            "Please ensure the database migration to single-table design is complete."
         )
 
-    # Extract steps from parameters JSONB column
-    parameters = test_case.parameters
-    steps_list = parameters.get('steps', [])
+    # Extract configuration from test_config JSONB column
+    test_config = test_case.test_config
+    steps_list = test_config.get('steps', [])
+    variables = test_config.get('variables', {})
+    validations = test_config.get('validations', {})
 
     if not steps_list:
-        raise ValueError(f"Test case {case_id} has no steps defined in parameters.steps")
+        raise ValueError(f"Test case {case_id} has no steps defined in test_config.steps")
 
     # Convert to the format expected by api_client
     # Support both HTTP and WebSocket protocols
@@ -180,12 +190,12 @@ def get_case_details(session, case_id, data_set_id):
 
         resolved_actions.append(step_dict)
 
-    # Return unified structure
+    # Return unified structure (compatible with existing api_client interface)
     case_details = {
         "id": test_case.id,
         "name": test_case.name,
-        "data_set_variables": data_set.variables,
-        "validations_override": data_set.validations_override,
+        "data_set_variables": variables,
+        "validations_override": validations,
         "steps": resolved_actions
     }
     return case_details

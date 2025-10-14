@@ -6,7 +6,7 @@ import threading
 import ssl
 from typing import List, Dict, Any, Optional
 import websocket
-from core.logger_config import logger
+from src.common.logger import logger
 
 
 class WebSocketClient:

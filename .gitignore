@@ -78,8 +78,10 @@ coverage.xml
 # Backup files
 *.backup
 *.bak
+backup_test_configs_*.json
 
-database/
 
-migrations/
-scripts/
+
+# Note: migrations/ and scripts/ are important - removed from gitignore
+# migrations/ - Contains important SQL migration scripts
+# scripts/ - Contains utility scripts

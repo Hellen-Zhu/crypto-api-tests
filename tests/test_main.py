@@ -2,22 +2,22 @@
 
 import pytest
 import allure
-from core.db_handler import get_test_cases_by_filter, get_case_details
+from src.database.handler import get_test_cases_by_filter, get_case_details
 
 def pytest_generate_tests(metafunc):
     """
-    在测试收集阶段，从数据库动态加载所有需要运行的测试场景。
+    Dynamically load all test scenarios from database during test collection phase.
     """
     if "test_case_run_data" in metafunc.fixturenames:
         session_factory = getattr(metafunc.config, 'db_session_factory', None)
         if not session_factory:
-            # 在工作进程中，尝试重新初始化数据库会话工厂
+            # In worker process, try to re-initialize database session factory
             try:
-                from core import db_handler
+                from src.database import handler as db_handler
                 session_factory = db_handler.initialize_session()
                 metafunc.config.db_session_factory = session_factory
             except Exception:
-                pytest.skip("数据库会话工厂不可用，跳过测试收集")
+                pytest.skip("Database session factory not available, skipping test collection")
                 return
 
         env = metafunc.config.getoption("--env")
@@ -35,7 +35,7 @@ def pytest_generate_tests(metafunc):
             )
 
         if not test_cases_to_run:
-            pytest.skip(f"在环境 '{env}' 下没有根据筛选条件找到任何测试用例")
+            pytest.skip(f"No test cases found in environment '{env}' with the given filter criteria")
 
         metafunc.parametrize(
             "test_case_run_data",
@@ -46,12 +46,12 @@ def pytest_generate_tests(metafunc):
 @allure.epic("API Test Suite")
 class TestApi:
     """
-    所有数据驱动的API测试都通过这个类来执行。
+    All data-driven API tests are executed through this class.
     """
     def test_run_case(self, test_case_run_data, api_client, db_session_factory):
         """
-        这是一个测试模板方法，会被 pytest_generate_tests 多次调用。
-        api_client 的 base_url 已经通过 fixture 自动设置为当前测试用例对应的 service URL。
+        This is a test template method that will be called multiple times by pytest_generate_tests.
+        The api_client's base_url has been automatically set to the service URL corresponding to the current test case via fixture.
         """
         case_id, data_set_id, case_display_name, jira_id = test_case_run_data
 
@@ -60,8 +60,8 @@ class TestApi:
                 full_case_details = get_case_details(session, case_id, data_set_id)
 
             if not full_case_details:
-                pytest.fail(f"无法找到 Case ID: {case_id} / DataSet ID: {data_set_id} 的详细信息")
+                pytest.fail(f"Unable to find details for Case ID: {case_id} / DataSet ID: {data_set_id}")
 
-            # api_client.base_url 已经由 base_url fixture 自动设置
-            # 不需要手动查询和设置
+            # api_client.base_url has already been automatically set by base_url fixture
+            # No need to manually query and set
             api_client.execute_steps(full_case_details)
