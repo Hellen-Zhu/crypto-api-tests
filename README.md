@@ -6,7 +6,6 @@
 
 - [Framework Overview](#-framework-overview)
 - [Installation Guide](#️-installation-guide)
-- [Test Cases](#-test-cases)
 - [Usage Guide](#-usage-guide)
 - [Project Structure](#-project-structure)
 - [Technology Stack](#-technology-stack)
@@ -59,43 +58,6 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 ```bash
 pip install -r requirements.txt
 ```
-
-### 3. Database Configuration
-
-Create `.env` file and configure database connection:
-
-```env
-# Database configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=crypto_api_test
-DB_USER=your_username
-DB_PASSWORD=your_password
-
-# Test environment configuration
-TEST_ENV=dev
-```
-
-### 4. Database Initialization
-
-```bash
-# Initialize database tables and test data
-python -c "from src.database.handler import DatabaseHandler; db = DatabaseHandler(); db.initialize_database()"
-```
-
-## 📝 Test Cases
-
-### Test Case Structure
-
-Test cases are stored in PostgreSQL database using dual-table design:
-
-1. **`api_auto_cases`** - Test case definition table
-   - Contains test steps, validation rules, tags, etc.
-   - Uses JSONB to store flexible test parameters
-
-2. **`case_data_sets`** - Test dataset table
-   - Contains test data variables
-   - Supports multi-environment configuration
 
 ## 🚀 Usage Guide
 
