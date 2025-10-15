@@ -53,6 +53,8 @@ class FunctionRegistry:
         # Timestamp functions
         self.register('timestamp', self._timestamp)
         self.register('timestamp_ms', self._timestamp_ms)
+        self.register('timestamp_days_ago', self._timestamp_days_ago)
+        self.register('timestamp_days_later', self._timestamp_days_later)
         self.register('datetime', self._datetime)
         self.register('date', self._date)
         self.register('time', self._time)
@@ -153,12 +155,22 @@ class FunctionRegistry:
     # ============= Timestamp Functions =============
 
     def _timestamp(self) -> int:
-        """Get current Unix timestamp (seconds)"""
-        return int(time.time())
+        """Get current Unix timestamp (milliseconds) - compatible with API requirements"""
+        return int(time.time() * 1000)
 
     def _timestamp_ms(self) -> int:
         """Get current Unix timestamp (milliseconds)"""
         return int(time.time() * 1000)
+
+    def _timestamp_days_ago(self, days: int) -> int:
+        """Get Unix timestamp (milliseconds) for N days ago"""
+        past_time = datetime.now() - timedelta(days=int(days))
+        return int(past_time.timestamp() * 1000)
+
+    def _timestamp_days_later(self, days: int) -> int:
+        """Get Unix timestamp (milliseconds) for N days later"""
+        future_time = datetime.now() + timedelta(days=int(days))
+        return int(future_time.timestamp() * 1000)
 
     def _datetime(self, format: str = '%Y-%m-%d %H:%M:%S') -> str:
         """Get current datetime as formatted string"""

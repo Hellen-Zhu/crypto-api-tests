@@ -6,6 +6,9 @@ from sqlalchemy import func, case
 from src.database.models import AutoProgress, AutoCaseAudit, AutoTestAudit
 from src.common.logger import logger
 
+# China timezone (UTC+8)
+CHINA_TZ = datetime.timezone(datetime.timedelta(hours=8))
+
 def create_run_progress(session, run_id, env_info):
     """
     Create an initial progress record at the start of the test run.
@@ -16,12 +19,12 @@ def create_run_progress(session, run_id, env_info):
     progress_record = AutoProgress(
         runid=run_id,
         task_status='RUNNING',
-        begin_time=datetime.datetime.now(),
+        begin_time=datetime.datetime.now(CHINA_TZ),
         profile=env_info.get("env"),
         label=env_info.get("tags"),
         component=env_info.get("component"),
-        run_by=os.getenv('USER', os.getenv('USERNAME', 'unknown')),
-        update_time=datetime.datetime.now()
+        run_by=os.getenv('USER', os.getenv('USERNAME', 'unknown'))
+        # created_at and updated_at will be auto-populated by server_default
     )
     try:
         session.add(progress_record)
@@ -30,10 +33,22 @@ def create_run_progress(session, run_id, env_info):
         logger.error(f"Failed to create initial progress record: {e}")
         session.rollback()
 
-def write_case_audit(session, run_id, case_id, data_set_id, jira_id, display_name, variables, report):
+def write_case_audit(session, run_id, case_id, jira_id, input_variables, report):
     """
-    Write test case result to auto_case_audit table.
+    Write test case execution summary to auto_case_audit table.
+
+    This function stores lightweight summary information only:
+    - Test execution status and timing
+    - Input variables (dataset parameters)
+    - Error message if failed
+
+    Detailed request/response data is stored separately in auto_test_audit.
+
     :param session: SQLAlchemy session object.
+    :param run_id: Unique test run identifier.
+    :param case_id: Test case ID.
+    :param jira_id: Associated JIRA ticket ID.
+    :param input_variables: Test input parameters (dataset variables).
     :param report: Pytest TestReport object.
     :return: The ID of the newly created audit record, or None on failure.
     """
@@ -42,10 +57,8 @@ def write_case_audit(session, run_id, case_id, data_set_id, jira_id, display_nam
     audit_record = AutoCaseAudit(
         runid=run_id,
         case_id=case_id,
-        data_set_id=data_set_id,
         issue_key=jira_id,
-        scenario=display_name,
-        variables=variables,
+        input_variables=input_variables,
         run_status=report.outcome, # 'passed', 'failed', 'skipped'
         duration=report.duration,
         error_message=error_message
@@ -59,29 +72,48 @@ def write_case_audit(session, run_id, case_id, data_set_id, jira_id, display_nam
         session.rollback()
         return None
 
-def write_debug_log(session, audit_case_id, audit_trail):
+def write_debug_log(session, audit_case_id, audit_trail, save_all=False):
     """
     Write detailed step audit logs to auto_test_audit table.
+
+    Strategy (Layered Storage):
+    - Debug mode (--debug-mode): Save ALL steps for ALL tests
+    - Normal mode: Save steps ONLY for FAILED tests (auto-diagnostic)
+    - Passed tests: No detailed logs unless debug mode
+
+    This approach provides automatic failure diagnostics without overwhelming the database.
+
     :param session: SQLAlchemy session object.
     :param audit_case_id: The primary key of the parent auto_case_audit record.
     :param audit_trail: A list of step dictionaries from ApiClient.
+    :param save_all: If True, save all steps; if False, save only failed steps.
     """
-    if not audit_case_id: return
+    if not audit_case_id or not audit_trail:
+        return
 
     try:
         records_to_add = []
+
         for step_log in audit_trail:
-            records_to_add.append(AutoTestAudit(
-                audit_case_id=audit_case_id,
-                step_order=step_log.get("step_order"),
-                action_description=step_log.get("action_description"),
-                request_details=step_log.get("request_details"),
-                response_details=step_log.get("response_details"),
-                step_status=step_log.get("step_status")
-            ))
+            step_status = step_log.get("step_status")
+
+            # Save all steps if requested, otherwise only save failed steps
+            if save_all or step_status == 'failed':
+                records_to_add.append(AutoTestAudit(
+                    audit_case_id=audit_case_id,
+                    step_order=step_log.get("step_order"),
+                    action_description=step_log.get("action_description"),
+                    request_details=step_log.get("request_details"),
+                    response_details=step_log.get("response_details"),
+                    step_status=step_status,
+                    step_duration=step_log.get("step_duration")  # Now populated
+                ))
+
         if records_to_add:
             session.bulk_save_objects(records_to_add)
             session.commit()
+            logger.debug(f"Saved {len(records_to_add)} step logs to auto_test_audit")
+
     except Exception as e:
         logger.error(f"Failed to write debug audit log: {e}")
         session.rollback()
@@ -112,7 +144,7 @@ def update_run_summary(session, run_id, end_time, status):
             progress_record.skips = stats.skipped or 0
             progress_record.end_time = end_time
             progress_record.task_status = status
-            progress_record.update_time = datetime.datetime.now()
+            # updated_at will be auto-updated by onupdate=func.now()
             session.commit()
             logger.info(f"Test run summary successfully updated in database (runid: {run_id})")
         else:

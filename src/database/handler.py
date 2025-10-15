@@ -47,6 +47,7 @@ def get_db_engine():
         echo_pool=False,
         connect_args={
             'connect_timeout': 10,  # Connection timeout
+            'options': '-c timezone=Asia/Shanghai'  # Use local timezone for timestamps
         }
     )
 
@@ -101,7 +102,7 @@ def get_test_cases_by_filter(session, env: str, service=None, module=None, compo
         ApiAutoCase.id,
         ApiAutoCase.name,
         ApiAutoCase.jira_id
-    ).filter(ApiAutoCase.is_active == True)
+    ).filter(ApiAutoCase.enable == True)
 
     # Environment filter
     query = query.filter(
@@ -123,19 +124,16 @@ def get_test_cases_by_filter(session, env: str, service=None, module=None, compo
     if case_id: query = query.filter(ApiAutoCase.id == case_id)
 
     results = query.all()
-    # Return format: (case_id, data_set_id, display_name, jira_id)
-    # Note: data_set_id is now same as case_id since we use single table
-    return [(row.id, row.id, row.name, row.jira_id) for row in results]
+    # Return format: (case_id, display_name, jira_id)
+    # Single-table design: each test case is independent
+    return [(row.id, row.name, row.jira_id) for row in results]
 
-def get_case_details(session, case_id, data_set_id):
+def get_case_details(session, case_id):
     """
     Get complete detailed information for a single test case.
 
     Single-table design: all information (steps, variables, validations)
     is stored in the test_config JSONB column.
-
-    Note: data_set_id parameter is kept for backward compatibility but
-    is ignored since case_id and data_set_id are now the same.
     """
     test_case = session.query(ApiAutoCase).filter(ApiAutoCase.id == case_id).first()
 
@@ -173,11 +171,11 @@ def get_case_details(session, case_id, data_set_id):
         # HTTP-specific fields
         if step_dict['protocol'] == 'http':
             step_dict.update({
-                'http_method': step.get('method'),
-                'api_url_path': step.get('path'),
-                'headers': step.get('request', {}).get('headers'),
-                'params': step.get('request', {}).get('params'),
-                'body': step.get('request', {}).get('body')
+                'method': step.get('method'),
+                'path': step.get('path'),
+                'headers': step.get('headers') or step.get('request', {}).get('headers'),
+                'params': step.get('params') or step.get('request', {}).get('params'),
+                'body': step.get('body') or step.get('request', {}).get('body')
             })
 
         # WebSocket-specific fields

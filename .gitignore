@@ -81,7 +81,4 @@ coverage.xml
 backup_test_configs_*.json
 
 
-
-# Note: migrations/ and scripts/ are important - removed from gitignore
-# migrations/ - Contains important SQL migration scripts
-# scripts/ - Contains utility scripts
+docs/

@@ -54,6 +54,7 @@ class TestRunRequest(BaseModel):
     All optional fields have default value None for smart filtering.
     """
     env: str = Field(..., description="Runtime environment, e.g., 'dev', 'uat'")
+    parallel: Optional[str] = Field(None, description="Number of parallel workers, e.g., '4', 'auto'")
     service: Optional[str] = Field(None, description="Filter by service")
     module: Optional[str] = Field(None, description="Filter by module")
     component: Optional[str] = Field(None, description="Filter by component")
@@ -152,8 +153,8 @@ async def trigger_test_run(request: TestRunRequest, background_tasks: Background
                 profile=request.env,
                 label=request.tags,
                 component=request.component,
-                run_by='TaaS_API',
-                update_time=datetime.datetime.now()
+                run_by='TaaS_API'
+                # created_at and updated_at will be auto-populated by server_default
             )
             session.add(progress_record)
             session.commit()

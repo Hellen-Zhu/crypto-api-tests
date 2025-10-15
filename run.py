@@ -67,7 +67,7 @@ def main():
 
     # 3. Determine final configuration based on priority strategy
     final_env = args.env or env_from_os or DEFAULT_ENV
-    final_parallel = args.parallel  # Only use command-line arg, not environment variable
+    final_parallel = args.parallel or parallel_from_os  # Command-line > Environment Variable
 
     logger.info(f"Final environment for this run: {final_env}")
     logger.info(f"Source: {'Command-line' if args.env else ('Environment Variable' if env_from_os else 'Hardcoded Default')}")
@@ -100,6 +100,8 @@ def main():
 
     logger.info("Test execution completed. Generating Allure report...")
     os.system(f'allure generate {report_dir} -o reports/allure-report --clean')
+    
+    logger.info("Allure report generated successfully!")
 
     sys.exit(exit_code)
 

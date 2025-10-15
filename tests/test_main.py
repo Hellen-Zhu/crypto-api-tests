@@ -40,7 +40,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize(
             "test_case_run_data",
             test_cases_to_run,
-            ids=[row[2] for row in test_cases_to_run]
+            ids=[row[1] for row in test_cases_to_run]
         )
 
 @allure.epic("API Test Suite")
@@ -53,14 +53,14 @@ class TestApi:
         This is a test template method that will be called multiple times by pytest_generate_tests.
         The api_client's base_url has been automatically set to the service URL corresponding to the current test case via fixture.
         """
-        case_id, data_set_id, case_display_name, jira_id = test_case_run_data
+        case_id, case_display_name, jira_id = test_case_run_data
 
         with allure.step(f"Executing Case: {case_display_name}"):
             with db_session_factory() as session:
-                full_case_details = get_case_details(session, case_id, data_set_id)
+                full_case_details = get_case_details(session, case_id)
 
             if not full_case_details:
-                pytest.fail(f"Unable to find details for Case ID: {case_id} / DataSet ID: {data_set_id}")
+                pytest.fail(f"Unable to find details for Case ID: {case_id}")
 
             # api_client.base_url has already been automatically set by base_url fixture
             # No need to manually query and set

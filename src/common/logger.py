@@ -9,7 +9,7 @@ from loguru import logger
 logger.remove()
 
 # Get log directory
-LOG_DIR = Path(__file__).parent.parent / "logs"
+LOG_DIR = Path(__file__).parent.parent.parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
 # Get log level (from environment variable or default to INFO)

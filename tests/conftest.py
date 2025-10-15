@@ -95,7 +95,7 @@ def pytest_runtest_makereport(item, call):
             run_data = item.callspec.params.get('test_case_run_data')
             if not run_data: return
 
-            case_id, data_set_id, display_name, jira_id = run_data
+            case_id, _, jira_id = run_data
 
             # Get run_id: priority from config, then environment variable, then command line
             run_id = getattr(item.config, 'run_id', None)
@@ -115,25 +115,38 @@ def pytest_runtest_makereport(item, call):
                     return
 
             if run_id and client_instance and session_factory:
-                # Get resolved variables used in this run
-                variables = getattr(client_instance, 'resolved_data_set_variables', {})
+                # Get resolved input variables (dataset parameters)
+                input_variables = getattr(client_instance, 'resolved_data_set_variables', {})
 
-                # Get audit trail
+                # Get audit trail (step-by-step execution log)
                 audit_trail = getattr(client_instance, 'audit_trail', [])
 
                 with session_factory() as db_sess:
-                    # Write individual case audit and get its ID
+                    # Write case summary (lightweight) and get its ID
                     audit_case_id = result_writer.write_case_audit(
-                        db_sess, run_id, case_id, data_set_id, jira_id,
-                        display_name, variables, report
+                        db_sess, run_id, case_id, jira_id,
+                        input_variables, report
                     )
 
-                    # If in debug mode, write detailed steps
+                    # Strategy for detailed logs (Layered Storage):
+                    # - Debug mode: Save ALL steps for ALL tests
+                    # - Normal mode: Save ALL steps for FAILED tests only (auto-diagnostic)
+                    # - Normal mode + Passed: No detailed logs (save space)
                     is_debug = item.config.getoption("--debug-mode")
-                    if is_debug and audit_case_id and audit_trail:
-                        result_writer.write_debug_log(
-                            db_sess, audit_case_id, audit_trail
-                        )
+                    is_failed = report.failed
+
+                    if audit_case_id and audit_trail:
+                        if is_debug:
+                            # Debug mode: Save all steps regardless of status
+                            result_writer.write_debug_log(
+                                db_sess, audit_case_id, audit_trail, save_all=True
+                            )
+                        elif is_failed:
+                            # Failed test: Save all steps for diagnosis (even without debug mode)
+                            result_writer.write_debug_log(
+                                db_sess, audit_case_id, audit_trail, save_all=True
+                            )
+                        # Passed test in normal mode: No detailed logs
         except Exception as e:
             logger.error(f"Failed to write result for item {item.name}: {e}")
 
@@ -215,7 +228,7 @@ def _load_case_service_mappings(db_session_factory) -> dict:
 
     with db_session_factory() as session:
         cases = session.query(ApiAutoCase.id, ApiAutoCase.service)\
-            .filter(ApiAutoCase.is_active == True).all()
+            .filter(ApiAutoCase.enable == True).all()
         cache = {case_id: service for case_id, service in cases}
 
     elapsed = time.time() - start_time

@@ -47,6 +47,14 @@ class AssertionEngine:
                 with allure.step("⚠️ SKIPPED: DB Validation (deprecated - app database connection no longer supported)"):
                     logger.warning("dbValidation is deprecated and has been skipped. Please remove from test cases.")
 
+            # --- NEW: Flexible field validation with operators ---
+            # Process all other fields as JSONPath + operator validations
+            reserved_keywords = {"expectedStatusCode", "body", "containsText", "notNull", "notExist", "dbValidation", "customValidations"}
+            jsonpath_validations = {k: v for k, v in validation_rules.items() if k not in reserved_keywords}
+
+            if jsonpath_validations:
+                self._dispatch_jsonpath_validations(response, jsonpath_validations, failures, context, data_set_vars)
+
             if failures:
                 pytest.fail("\n".join(failures), pytrace=False)
 
@@ -54,10 +62,18 @@ class AssertionEngine:
 
     def _dispatch_status_code(self, response, rules, failures, context, data_set_vars):
         resolved_status_code = resolve_placeholders(rules["expectedStatusCode"], context, data_set_vars)
-        with allure.step(f"Assert: Status Code equals [{resolved_status_code}]"):
-            try:
-                self._assert_status_code(response['status_code'], resolved_status_code)
-            except AssertionError as e: failures.append(str(e))
+
+        # Support both direct value and operator-based validation
+        if isinstance(resolved_status_code, dict):
+            with allure.step(f"Assert: Status Code matches operators {resolved_status_code}"):
+                try:
+                    self._apply_operators('status_code', response['status_code'], resolved_status_code)
+                except AssertionError as e: failures.append(str(e))
+        else:
+            with allure.step(f"Assert: Status Code equals [{resolved_status_code}]"):
+                try:
+                    self._assert_status_code(response['status_code'], resolved_status_code)
+                except AssertionError as e: failures.append(str(e))
 
     def _dispatch_body_match(self, response, rules, failures, context, data_set_vars):
         with allure.step("Assert: Body partially matches expected JSON"):
@@ -96,6 +112,23 @@ class AssertionEngine:
                 try:
                     self._assert_json_path_not_exist(response['body'], path)
                 except AssertionError as e: failures.append(str(e))
+
+    def _dispatch_jsonpath_validations(self, response, validations, failures, context, data_set_vars):
+        """
+        Handle flexible JSONPath + operator validations.
+
+        Supports formats like:
+        - "body.result.data.length": {">=": 1, "<=": 100}
+        - "body.code": 0
+        - "body.result.interval": {"in": ["M1", "1m"]}
+        - "body.result.data[0].length": 7
+        """
+        with allure.step("Assert: JSONPath field validations"):
+            for json_path, expected_value in validations.items():
+                try:
+                    self._assert_jsonpath_field(response['body'], json_path, expected_value, context, data_set_vars)
+                except AssertionError as e:
+                    failures.append(str(e))
 
     def _dispatch_db_validation(self, response, rules, db_conn, failures, context, data_set_vars):
         if not db_conn:
@@ -177,6 +210,7 @@ class AssertionEngine:
     def _assert_body_contains_text(self, body, text):
         assert text in str(body), f"Expected text '{text}' not found in response body."
         logger.debug(f"Response body contains the text '{text}'.")
+        allure.attach(f"Response body contains the text '{text}'.", name="Body Contains Text", attachment_type=allure.attachment_type.TEXT)
 
     def _assert_json_path_not_null(self, body, json_path):
         matches = parse(json_path).find(body)
@@ -184,11 +218,131 @@ class AssertionEngine:
         actual_value = matches[0].value
         assert actual_value is not None, f"Path '{json_path}' exists but its value is null."
         logger.debug(f"Path '{json_path}' exists and is not null.")
+        allure.attach(f"Path '{json_path}' exists and is not null.", name="JSONPath Validation Success", attachment_type=allure.attachment_type.TEXT)
 
     def _assert_json_path_not_exist(self, body, json_path):
         matches = parse(json_path).find(body)
         assert len(matches) == 0, f"Path '{json_path}' was found, but was expected not to exist."
         logger.debug(f"Path '{json_path}' does not exist as expected.")
+        allure.attach(f"Path '{json_path}' does not exist as expected.", name="JSONPath Validation Success", attachment_type=allure.attachment_type.TEXT)
+
+    def _assert_jsonpath_field(self, body, json_path, expected_value, context=None, data_set_vars=None):
+        """
+        Assert a JSONPath field with flexible operators.
+
+        Supports:
+        - Direct value: "body.code": 0
+        - Comparison operators: {">=": 1, "<=": 100}
+        - Equality operators: {"==": value, "!=": value}
+        - Inclusion operators: {"in": [v1, v2], "not_in": [v1, v2]}
+        - Type checking: {"type": "string/number/array/object/boolean"}
+        - String operations: {"contains": "substring", "regex": "pattern"}
+        """
+        # Resolve placeholders in expected value
+        resolved_expected = resolve_placeholders(expected_value, context, data_set_vars)
+
+        # Extract actual value using JSONPath (handle body. prefix)
+        if json_path.startswith('body.'):
+            json_path = json_path[5:]  # Remove 'body.' prefix
+        elif json_path == 'body':
+            json_path = '$'  # Root path
+
+        # Handle special case: array.length
+        is_length_check = json_path.endswith('.length')
+        if is_length_check:
+            json_path = json_path[:-7]  # Remove '.length'
+
+        # Parse JSONPath
+        try:
+            matches = parse(json_path).find(body)
+        except Exception as e:
+            raise AssertionError(f"Invalid JSONPath '{json_path}': {e}")
+
+        # Check if path exists
+        if not matches:
+            raise AssertionError(f"JSONPath 'body.{json_path}' not found in response")
+
+        actual_value = matches[0].value
+
+        # Handle length checks
+        if is_length_check:
+            if not isinstance(actual_value, (list, dict, str)):
+                raise AssertionError(f"JSONPath 'body.{json_path}.length': Expected array/dict/string, got {type(actual_value).__name__}")
+            actual_value = len(actual_value)
+
+        # Now perform validation based on expected value type
+        full_path = f"body.{json_path}{'.length' if is_length_check else ''}"
+
+        if isinstance(resolved_expected, dict):
+            # Operator-based validation
+            self._apply_operators(full_path, actual_value, resolved_expected)
+        else:
+            # Direct value comparison
+            assert actual_value == resolved_expected, \
+                f"JSONPath '{full_path}': Expected '{resolved_expected}', got '{actual_value}'"
+            logger.debug(f"JSONPath '{full_path}' equals expected value '{resolved_expected}'")
+            allure.attach(f"JSONPath '{full_path}' equals expected value '{resolved_expected}'", name="JSONPath Validation Success", attachment_type=allure.attachment_type.TEXT)
+
+    def _apply_operators(self, path, actual_value, operators):
+        """
+        Apply operator validations on a field.
+
+        Supported operators:
+        - Comparison: ==, !=, >, >=, <, <=
+        - Inclusion: in, not_in
+        - Type: type
+        - String: contains, regex
+        """
+        for operator, expected_value in operators.items():
+            if operator == "==":
+                assert actual_value == expected_value, \
+                    f"Path '{path}': Expected == '{expected_value}', got '{actual_value}'"
+            elif operator == "!=":
+                assert actual_value != expected_value, \
+                    f"Path '{path}': Expected != '{expected_value}', got '{actual_value}'"
+            elif operator == ">":
+                assert actual_value > expected_value, \
+                    f"Path '{path}': Expected > {expected_value}, got {actual_value}"
+            elif operator == ">=":
+                assert actual_value >= expected_value, \
+                    f"Path '{path}': Expected >= {expected_value}, got {actual_value}"
+            elif operator == "<":
+                assert actual_value < expected_value, \
+                    f"Path '{path}': Expected < {expected_value}, got {actual_value}"
+            elif operator == "<=":
+                assert actual_value <= expected_value, \
+                    f"Path '{path}': Expected <= {expected_value}, got {actual_value}"
+            elif operator == "in":
+                assert actual_value in expected_value, \
+                    f"Path '{path}': Expected value in {expected_value}, got '{actual_value}'"
+            elif operator == "not_in":
+                assert actual_value not in expected_value, \
+                    f"Path '{path}': Expected value not in {expected_value}, got '{actual_value}'"
+            elif operator == "type":
+                type_map = {
+                    'string': str,
+                    'number': (int, float),
+                    'array': list,
+                    'object': dict,
+                    'boolean': bool,
+                    'null': type(None)
+                }
+                expected_type = type_map.get(expected_value)
+                if not expected_type:
+                    raise AssertionError(f"Path '{path}': Unknown type '{expected_value}'")
+                assert isinstance(actual_value, expected_type), \
+                    f"Path '{path}': Expected type '{expected_value}', got '{type(actual_value).__name__}'"
+            elif operator == "contains":
+                assert expected_value in str(actual_value), \
+                    f"Path '{path}': Expected to contain '{expected_value}', got '{actual_value}'"
+            elif operator == "regex":
+                import re
+                assert re.search(expected_value, str(actual_value)), \
+                    f"Path '{path}': Expected to match regex '{expected_value}', got '{actual_value}'"
+            else:
+                raise AssertionError(f"Path '{path}': Unknown operator '{operator}'")
+
+        logger.debug(f"Path '{path}' passed all operator validations: {operators}")
 
     # ============================================================
     # Candlestick-specific validation methods
@@ -246,8 +400,12 @@ class AssertionEngine:
 
         if not data:
             logger.warning("No candlestick data to validate OHLC logic")
+            allure.attach("No candlestick data to validate OHLC logic", name="OHLC Validation Warning", attachment_type=allure.attachment_type.TEXT)
             return
 
+        # 记录开始验证的日志
+        logger.info(f"Starting OHLC validation for {len(data)} candles")
+        allure.attach("Starting OHLC validation for {len(data)} candles", name="OHLC Validation Start", attachment_type=allure.attachment_type.TEXT)
         for i, candle in enumerate(data):
             # Extract OHLC values
             open_price = float(candle.get('o', 0))
@@ -255,6 +413,11 @@ class AssertionEngine:
             low_price = float(candle.get('l', 0))
             close_price = float(candle.get('c', 0))
             volume = float(candle.get('v', 0))
+
+            # 记录每个蜡烛的验证日志
+            candle_info = f"Candle {i}: O={open_price}, H={high_price}, L={low_price}, C={close_price}, V={volume}"
+            logger.debug(candle_info)
+            allure.attach(candle_info, name=f"Candle {i} Data", attachment_type=allure.attachment_type.TEXT)
 
             # Validate positive values
             assert open_price > 0, f"Candle {i}: Open price must be positive, got {open_price}"
@@ -282,6 +445,7 @@ class AssertionEngine:
 
         if not data or len(data) < 2:
             logger.warning("Insufficient data to validate timestamp sequence")
+            allure.attach("Insufficient data to validate timestamp sequence", name="Timestamp Validation Warning", attachment_type=allure.attachment_type.TEXT)
             return
 
         # Map timeframe to milliseconds
@@ -304,7 +468,12 @@ class AssertionEngine:
 
         if not expected_interval:
             logger.warning(f"Unknown timeframe '{timeframe}', skipping timestamp validation")
+            allure.attach(f"Unknown timeframe '{timeframe}', skipping timestamp validation", name="Timestamp Validation Skip", attachment_type=allure.attachment_type.TEXT)
             return
+
+        # 记录开始验证的日志
+        logger.info(f"Starting timestamp sequence validation for {len(data)} candles with {timeframe} interval")
+        allure.attach(f"Validating timestamp sequence for {len(data)} candles with {timeframe} interval", name="Timestamp Validation Start", attachment_type=allure.attachment_type.TEXT)
 
         # Check timestamp sequence (should be in ascending order with correct intervals)
         prev_timestamp = None
@@ -323,12 +492,19 @@ class AssertionEngine:
                     interval = timestamp - prev_timestamp
                     # Allow small tolerance (5%) for potential gaps
                     tolerance = expected_interval * 0.05
+                    
+                    # 记录每个时间间隔的验证日志
+                    interval_info = f"Interval {i}: Expected {expected_interval}ms, Actual {interval}ms, Tolerance ±{tolerance}ms"
+                    logger.debug(interval_info)
+                    allure.attach(interval_info, name=f"Timestamp Interval {i}", attachment_type=allure.attachment_type.TEXT)
+                    
                     assert abs(interval - expected_interval) <= tolerance or interval % expected_interval == 0, \
                         f"Candle {i}: Incorrect interval {interval}ms, expected {expected_interval}ms (±{tolerance}ms) for timeframe {timeframe}"
 
             prev_timestamp = timestamp
 
         logger.debug(f"Timestamp sequence validation passed for {len(data)} candles with timeframe {timeframe}")
+        allure.attach(f"Timestamp sequence validation passed for {len(data)} candles with timeframe {timeframe}", name="Timestamp Validation Success", attachment_type=allure.attachment_type.TEXT)
 
     def _validate_data_count(self, body: Dict[str, Any], expected_count):
         """
@@ -341,6 +517,10 @@ class AssertionEngine:
         if isinstance(expected_count, str):
             expected_count = int(expected_count)
 
+        # 记录开始验证的日志
+        logger.info(f"Starting data count validation: Expected {expected_count}, Actual {actual_count}")
+        allure.attach(f"Validating data count: Expected {expected_count}, Actual {actual_count}", name="Data Count Validation Start", attachment_type=allure.attachment_type.TEXT)
+
         # For large requests, API might return less than requested (which is acceptable)
         if expected_count > 100:
             assert actual_count > 0 and actual_count <= expected_count, \
@@ -351,6 +531,7 @@ class AssertionEngine:
             # Note: We can't assert exact count as it depends on available historical data
 
         logger.debug(f"Data count validation passed: {actual_count} candles returned (requested: {expected_count})")
+        allure.attach(f"Data count validation passed: {actual_count} candles returned (requested: {expected_count})", name="Data Count Validation Success", attachment_type=allure.attachment_type.TEXT)
 
     # ============================================================
     # WebSocket-specific assertion methods (MVP)

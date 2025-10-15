@@ -4,17 +4,17 @@
 
 ## 📋 Table of Contents
 
-- [Core Features](#-core-features)
-- [Architecture Design](#-architecture-design)
-- [Quick Start](#-quick-start)
+- [Framework Overview](#-framework-overview)
+- [Installation Guide](#-installation-guide)
+- [Test Cases](#-test-cases)
 - [Usage Guide](#-usage-guide)
 - [Project Structure](#-project-structure)
 
-## ✨ Core Features
+## ✨ Framework Overview
 
-### 🎯 Innovative Architecture
+### 🎯 Core Features
 - **Data-Driven Design** - Complete separation of test logic and test data, configuration as test
-- **2-Table Design** - Uses PostgreSQL JSONB to store flexible test steps, no frequent schema changes needed
+- **Dual-Table Design** - Uses PostgreSQL JSONB to store flexible test steps, no frequent schema changes needed
 - **Zero-Invasion Extension** - Seamlessly supports HTTP and WebSocket via `protocol` field
 - **Enterprise Connection Pool** - Optimized database connection pool (20 base + 10 overflow)
 
@@ -26,75 +26,14 @@
 - ✅ **Multi-Environment Support** - Flexible environment configuration and routing
 - ✅ **Allure Reports** - Professional visual test reporting
 
-### 🌟 Smart Features
-- **Placeholder Resolution** - `{{@variable}}` for dataset variables, `{{step_X.response.body.field}}` for inter-step passing
-- **Logging System** - Loguru colored logs, auto-rotation, separate error storage
-- **Debug Mode** - Detailed audit logs written to database
+## 🛠️ Installation Guide
 
-## 🏗️ Architecture Design
+### 1. Prerequisites
+- Python 3.8+
+- PostgreSQL 14+
+- Virtual environment (recommended)
 
-### Core Concept
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   PostgreSQL Database                    │
-│  ┌─────────────────┐  ┌──────────────────────────────┐ │
-│  │ api_auto_cases  │  │     case_data_sets          │ │
-│  │                 │  │                              │ │
-│  │ - id            │  │ - case_id (FK)              │ │
-│  │ - name          │  │ - data_set_name             │ │
-│  │ - service       │  │ - variables (JSONB)         │ │
-│  │ - module        │  │ - validations_override      │ │
-│  │ - tags[]        │  │ - environments[]            │ │
-│  │ - parameters    │  │ - is_active                 │ │
-│  │   (JSONB)       │  └──────────────────────────────┘ │
-│  │   ├─ steps[]    │                                   │
-│  │   │  ├─ protocol│           ┌─────────────────┐    │
-│  │   │  ├─ method │           │ test_environments│    │
-│  │   │  ├─ path   │           │                  │    │
-│  │   │  ├─ params │           │ - name           │    │
-│  │   │  ├─ body   │           │ - base_url       │    │
-│  │   │  └─ validations        │ - services[]     │    │
-│  │               │           │ - is_active      │    │
-│  └─────────────────┘           └─────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-              ┌─────────────────────────┐
-              │   Python Test Engine    │
-              │                         │
-              │  ┌──────────────────┐  │
-              │  │  db_handler.py   │  │ - Database access layer
-              │  └──────────────────┘  │
-              │  ┌──────────────────┐  │
-              │  │  api_client.py   │  │ - HTTP/WebSocket executor
-              │  └──────────────────┘  │
-              │  ┌──────────────────┐  │
-              │  │ assertion_engine │  │ - Validation engine
-              │  └──────────────────┘  │
-              │  ┌──────────────────┐  │
-              │  │ context_manager  │  │ - Variable manager
-              │  └──────────────────┘  │
-              └─────────────────────────┘
-                           ↓
-                    Allure Reports
-```
-
-### Tech Stack
-
-| Component | Technology | Version | Purpose |
-|-----------|-----------|---------|---------|
-| **Test Framework** | Pytest | 7.4.3 | Test execution engine |
-| **Database** | PostgreSQL | 14+ | Test data storage |
-| **ORM** | SQLAlchemy | 2.0.23 | Database access |
-| **HTTP Client** | Requests | 2.31.0 | REST API calls |
-| **WebSocket** | websocket-client | 1.7.0 | WebSocket connections |
-| **Reporting** | Allure | 2.13.2 | Test report generation |
-| **Logging** | Loguru | 0.7.2 | Logging system |
-| **Parallel** | pytest-xdist | 3.8.0 | Parallel execution |
-
-## 🚀 Quick Start
-
-### 1. Installation
+### 2. Installation Steps
 
 ```bash
 # Clone repository
@@ -109,7 +48,77 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Run Tests
+### 3. Database Configuration
+
+Create `.env` file and configure database connection:
+
+```env
+# Database configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=crypto_api_test
+DB_USER=your_username
+DB_PASSWORD=your_password
+
+# Test environment configuration
+TEST_ENV=dev
+```
+
+### 4. Database Initialization
+
+
+## 📝 Test Cases
+
+### Test Case Structure
+
+Test cases are stored in PostgreSQL database using dual-table design:
+
+1. **`api_auto_cases`** - Test case definition table
+   - Contains test steps, validation rules, tags, etc.
+   - Uses JSONB to store flexible test parameters
+
+2. **`case_data_sets`** - Test dataset table
+   - Contains test data variables
+   - Supports multi-environment configuration
+
+### Test Case Example
+
+```json
+{
+  "name": "User Login Test",
+  "service": "user_svc",
+  "module": "authentication",
+  "tags": ["P0", "smoke"],
+  "parameters": {
+    "steps": [
+      {
+        "protocol": "http",
+        "method": "POST",
+        "path": "/api/v1/login",
+        "body": {
+          "username": "{{@username}}",
+          "password": "{{@password}}"
+        },
+        "validations": [
+          {
+            "type": "status_code",
+            "expected": 200
+          },
+          {
+            "type": "json_path",
+            "path": "$.data.token",
+            "expected": "not_null"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## 🚀 Usage Guide
+
+### Basic Commands
 
 ```bash
 # Run all tests
@@ -119,95 +128,101 @@ python run.py
 python run.py --env uat
 
 # Parallel execution
-python run.py --env exchange_uat -n 4
+python run.py --env uat -n 4
 
-# View test report
-allure serve reports/allure-report
-```
-
-## 📖 Usage Guide
-
-### Basic Commands
-
-```bash
-# Run by environment
-python run.py --env uat                    # UAT environment
-python run.py --env exchange_uat           # Exchange UAT environment
-
-# Filter by service/module
-python run.py --env uat --service "exchange_svc"
+# Filter by service
+python run.py --env uat --service "user_svc"
 
 # Filter by tags
-python run.py --env uat --tags "P0,smoke"        # P0 and smoke tags
-python run.py --env exchange_uat --tags "negative"  # Negative tests
+python run.py --env uat --tags "P0,smoke"
 
 # Run specific test case
-python run.py --env uat --id 1             # Run case_id=1
+python run.py --env uat --id 1
 
-# Parallel execution
-python run.py --env exchange_uat -n 4      # 4 workers
-python run.py --env uat -n auto            # Auto-detect CPU cores
-
+# Debug mode
+python run.py --env uat --debug-mode
 ```
 
 ### View Test Reports
 
-After test execution, Allure report is automatically generated:
-
 ```bash
-# Method 1: Auto-open browser
+# Generate and open Allure report
 allure serve reports/allure-report
 
-# Method 2: Generate and manually open
+# Or generate report manually
 allure generate reports/allure-results -o reports/allure-report --clean
 allure open reports/allure-report -p 8889
 ```
 
 Report URL: `http://127.0.0.1:8889`
 
+### Advanced Usage
+
+```bash
+# Auto-detect CPU cores for parallel execution
+python run.py --env uat -n auto
+
+# Combine filter conditions
+python run.py --env uat --service "user_svc" --tags "P0" --module "authentication"
+
+# Run tests associated with specific Jira
+python run.py --env uat --jira "PROJ-123"
+```
+
 ## 📁 Project Structure
 
 ```
 crypto-api-tests/
-├── core/                          # Core engine
-│   ├── api_client.py             # HTTP/WebSocket executor
-│   ├── websocket_client.py       # WebSocket client
-│   ├── assertion_engine.py       # Validation engine
-│   ├── context_manager.py        # Variable context manager
-│   ├── db_handler.py             # Database access layer
-│   ├── result_writer.py          # Result writer
-│   └── logger_config.py          # Logging configuration
-│
-├── tests/                         # Test entry
-│   ├── conftest.py               # Pytest config and fixtures
+├── src/                          # Core source code
+│   ├── client/                   # Client layer
+│   │   ├── api_client.py         # API client
+│   │   ├── http_client.py        # HTTP client
+│   │   └── websocket_client.py   # WebSocket client
+│   ├── database/                 # Data access layer
+│   │   ├── handler.py            # Database handler
+│   │   ├── models.py             # Data models
+│   │   └── result_writer.py     # Result writer
+│   ├── engine/                   # Core engine
+│   │   ├── assertion_engine.py  # Assertion engine
+│   │   ├── context_manager.py   # Context manager
+│   │   ├── function_registry.py # Function registry
+│   │   └── placeholder_resolver.py # Placeholder resolver
+│   └── common/                   # Common components
+│       └── logger.py             # Logger configuration
+├── tests/                        # Test entry point
+│   ├── conftest.py               # Pytest configuration
 │   └── test_main.py              # Main test file
-│
-├── models/                        # Data models
-│   └── tables.py                 # SQLAlchemy ORM models
-│
-├── utils/                         # Utility functions
-│   └── placeholder_parser.py     # Placeholder resolver
-│
-├── scripts/                       # Helper scripts
-│   ├── export_candlestick_to_excel.py
-│   ├── merge_candlestick_cases.py
-│   ├── remove_duplicate_tests.py
-│   └── final_stats.py
-│
-├── reports/                       # Test reports
-│   ├── allure-results/           # Allure raw data
-│   └── allure-report/            # Allure HTML report
-│
-├── logs/                          # Log files
-│   ├── framework_*.log           # Framework logs
-│   └── errors_*.log              # Error logs
-│
-├── run.py                         # Main entry point
-├── requirements.txt               # Python dependencies
-├── .env                          # Environment config (to be created)
+├── reports/                      # Test reports
+│   ├── allure-results/          # Allure raw data
+│   └── allure-report/           # Allure HTML report
+├── logs/                         # Log files
+├── run.py                        # Main entry point
+├── requirements.txt              # Dependencies
 └── README.md                     # This document
 ```
 
-## 👥 Authors
+## 🔧 Technology Stack
+
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| **Test Framework** | Pytest | 7.4.3 | Test execution engine |
+| **Database** | PostgreSQL | 14+ | Test data storage |
+| **ORM** | SQLAlchemy | 2.0.23 | Database access |
+| **HTTP Client** | Requests | 2.31.0 | REST API calls |
+| **WebSocket** | websocket-client | 1.7.0 | WebSocket connections |
+| **Reporting** | Allure | 2.13.2 | Test report generation |
+| **Logging** | Loguru | 0.7.2 | Logging system |
+| **Parallel** | pytest-xdist | 3.8.0 | Parallel execution |
+
+## 📚 Additional Documentation
+
+Detailed architecture documentation is available in the `docs/` directory:
+
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - Five-layer architecture design
+- **[Detailed Layer Design](docs/LAYER_DETAILS.md)** - Technical design for each layer
+- **[Interview Guide](docs/INTERVIEW_GUIDE.md)** - Technical interview guidance
+- **[Test Cases Guide](docs/TEST_CASES_README.md)** - Test case writing guide
+
+## 👥 Author
 
 **Hellen Zhu** - [GitHub](https://github.com/Hellen-Zhu)

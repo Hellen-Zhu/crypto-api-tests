@@ -2,13 +2,18 @@
 
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean,
-    ForeignKey, TIMESTAMP, func, REAL
+    ForeignKey, TIMESTAMP, REAL, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import declarative_base, relationship
 
 # Create base class for all ORM classes
 Base = declarative_base()
+
+# Helper function to get current time in China timezone (UTC+8)
+def china_now():
+    """Returns current timestamp in China timezone (UTC+8)"""
+    return text("(NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')")
 
 # =================================================================
 # 1. Test Case Definition Tables
@@ -43,9 +48,9 @@ class ApiAutoCase(Base):
     test_config = Column(JSONB, nullable=False)
 
     # Status and metadata
-    is_active = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    enable = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
 
 # =================================================================
 # 2. Test Configuration Tables
@@ -82,50 +87,81 @@ class Environment(Base):
 # =================================================================
 
 class AutoProgress(Base):
-    """Test run summary information table"""
+    """
+    Test run summary information table
+    Each row represents one test execution session with aggregated statistics
+    """
     __tablename__ = 'auto_progress'
     id = Column(Integer, primary_key=True)
-    runid = Column(String(50))
+    runid = Column(String(50), unique=True, nullable=False, index=True)
     version_id = Column(String(35))
     component = Column(String(50))
-    total_cases = Column(Integer)
-    passes = Column(Integer)
-    failures = Column(Integer)
-    skips = Column(Integer)
-    begin_time = Column(TIMESTAMP)
-    end_time = Column(TIMESTAMP)
+    total_cases = Column(Integer, default=0)
+    passes = Column(Integer, default=0)
+    failures = Column(Integer, default=0)
+    skips = Column(Integer, default=0)
+    begin_time = Column(TIMESTAMP(timezone=True))
+    end_time = Column(TIMESTAMP(timezone=True))
     releaseversion = Column(String(200))
     task_status = Column(String(25))
     run_by = Column(String(50))
     label = Column(String(1000))
     runmode = Column(String(255))
     profile = Column(String(200))
-    update_time = Column(TIMESTAMP)
+
+    # Timestamp fields (unified naming convention)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
 
 class AutoCaseAudit(Base):
-    """Detailed test case result audit table"""
+    """
+    Test case execution summary table.
+    Each row represents one test case execution with its result and basic context.
+
+    Design Philosophy (Layered Storage):
+    - This table stores SUMMARY information only (lightweight)
+    - Detailed step-by-step data stored in auto_test_audit (heavy)
+    - Failed cases automatically get detailed logs even without debug mode
+    """
     __tablename__ = 'auto_case_audit'
     id = Column(Integer, primary_key=True)
     runid = Column(String(50), nullable=False, index=True)
-    case_id = Column(Integer)
-    data_set_id = Column(Integer)
-    scenario = Column(Text)
-    issue_key = Column(String(50))
-    run_status = Column(String(20))
+    case_id = Column(Integer, index=True)
+    issue_key = Column(String(50), index=True)
+    run_status = Column(String(20), index=True)  # 'passed', 'failed', 'skipped'
     duration = Column(REAL)
     error_message = Column(Text)
-    variables = Column(JSONB)
-    update_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # Lightweight execution context (input parameters only)
+    # Stores only test input variables, not full request/response
+    input_variables = Column(JSONB)
+
+    # Timestamp fields (unified naming convention)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
+
+    # Relationships
     debug_logs = relationship("AutoTestAudit", back_populates="case_audit", cascade="all, delete-orphan")
 
 class AutoTestAudit(Base):
-    """Detailed step-by-step interaction log table for debug mode"""
+    """
+    Detailed step-by-step interaction log table for debug mode
+    Each row represents one API request/response step within a test case
+    Only populated when debug logging is enabled
+    """
     __tablename__ = 'auto_test_audit'
     id = Column(Integer, primary_key=True)
-    audit_case_id = Column(Integer, ForeignKey('auto_case_audit.id'), nullable=False)
+    audit_case_id = Column(Integer, ForeignKey('auto_case_audit.id', ondelete='CASCADE'), nullable=False, index=True)
     step_order = Column(Integer)
     action_description = Column(Text)
     request_details = Column(JSONB)
     response_details = Column(JSONB)
     step_status = Column(String(20))
+    step_duration = Column(REAL)  # Duration for this specific step in seconds
+
+    # Timestamp fields (unified naming convention)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
+
+    # Relationships
     case_audit = relationship("AutoCaseAudit", back_populates="debug_logs")

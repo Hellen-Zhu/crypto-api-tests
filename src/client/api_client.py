@@ -1,9 +1,15 @@
 # src/client/api_client.py
 
 """
-API Client - Enhanced with Unified Placeholder System
+API Client - Test Case Orchestrator (Layer 2)
+
+Architecture:
+- Orchestrates test step execution across multiple protocols (HTTP, WebSocket)
+- Delegates protocol-specific logic to dedicated clients (Strategy Pattern)
+- Manages test context, assertions, and audit trail
 
 Key features:
+- Protocol-agnostic orchestration (HTTP via HttpClient, WebSocket via WebSocketClient)
 - Uses unified placeholder resolver (supports both ${} and {{}} syntax)
 - Enhanced context manager with auto-capture
 - Built-in function registry (30+ functions)
@@ -11,13 +17,13 @@ Key features:
 - Full backward compatibility with legacy syntax
 """
 
-import requests
 import allure
 import json
 from typing import Dict, Any
 
 from src.engine.context_manager import TestContext
 from src.engine.assertion_engine import AssertionEngine
+from src.client.http_client import HttpClient
 from src.client.websocket_client import WebSocketClient
 from src.engine.placeholder_resolver import PlaceholderResolver
 from src.common.logger import logger
@@ -25,9 +31,15 @@ from src.common.logger import logger
 
 class ApiClient:
     """
-    Enhanced API client with unified placeholder system.
+    Test case orchestrator for multi-protocol API testing.
+
+    Architecture (Strategy Pattern):
+    - Delegates HTTP requests to HttpClient
+    - Delegates WebSocket operations to WebSocketClient
+    - Orchestrates: placeholder resolution, assertions, context, audit trail
 
     Features:
+    - Protocol-agnostic test execution (HTTP, WebSocket)
     - Unified placeholder resolution (${} and {{}} syntax)
     - Function calls: ${fn:random_username()}
     - Dataset variables: ${variable} or {{@variable}}
@@ -46,10 +58,10 @@ class ApiClient:
             raise ValueError("API base_url cannot be empty")
 
         self.base_url = base_url
-        self.session = requests.Session()
 
-        # Disable environment variable proxy to avoid localhost issues
-        self.session.trust_env = False
+        # Initialize protocol clients (Strategy Pattern)
+        self.http_client = None
+        self.http_client = HttpClient()
 
         self.assertion_engine = AssertionEngine()
         self.audit_trail = []  # Store audit trail for current test case
@@ -84,6 +96,8 @@ class ApiClient:
                 protocol = step.get('protocol', 'http')
 
                 if protocol == 'http':
+                    if self.http_client is None:
+                        self.http_client = HttpClient()
                     self._execute_http_step(step, context, data_set_variables, validations_override)
 
                 elif protocol == 'websocket':
@@ -118,6 +132,8 @@ class ApiClient:
             data_set_variables: Dataset variables
             validations_override: Validation overrides
         """
+        import time
+
         step_order = step.get('step_order')
         step_description = step.get('description', f'Step {step_order}')
         step_name = f"step_{step_order}"
@@ -126,7 +142,11 @@ class ApiClient:
             step_status = 'passed'
             request_details_dict = {}
             response_data = {}
+            step_start_time = time.time()
 
+            # 记录步骤开始执行的日志
+            logger.info(f"Executing HTTP Step {step_order}: {step_description}")
+            
             try:
                 # Initialize placeholder resolver
                 resolver = PlaceholderResolver(
@@ -135,15 +155,22 @@ class ApiClient:
                 )
 
                 # 1. Resolve all placeholders
-                api_url_path = resolver.resolve(step.get('api_url_path', ''))
+                api_url_path = resolver.resolve(step.get('path', ''))
                 full_url = self.base_url + api_url_path
-
+                
+                # 记录解析后的URL
+                logger.debug(f"Resolved URL: {full_url}")
+ 
                 headers = resolver.resolve(step.get('headers'))
                 params = resolver.resolve(step.get('params'))
                 body = resolver.resolve(step.get('body'))
 
+                http_method = step.get('method')
+                if not http_method:
+                    raise ValueError(f"HTTP method is missing in step {step_order}")
+
                 request_details_dict = {
-                    "method": step.get('http_method'),
+                    "method": http_method,
                     "url": full_url,
                     "headers": headers,
                     "params": params,
@@ -155,28 +182,20 @@ class ApiClient:
                     attachment_type=allure.attachment_type.JSON
                 )
 
-                # 2. Send HTTP request
-                response = self.session.request(
-                    method=step.get('http_method'),
+                # 2. Send HTTP request via HttpClient (delegated to protocol layer)
+                logger.info(f"Sending request with details as: {json.dumps(request_details_dict, indent=2, ensure_ascii=False)}")
+
+                response_data = self.http_client.send(
+                    method=http_method,
                     url=full_url,
                     headers=headers,
                     params=params,
-                    json=body,
+                    body=body,
                     timeout=30
                 )
+                logger.info(f"Received response code: {response_data['status_code']}")
+                logger.debug(f"Received response details: {json.dumps(response_data, indent=2, ensure_ascii=False)}")
 
-                # 3. Standardize response data
-                response_body = None
-                try:
-                    response_body = response.json()
-                except json.JSONDecodeError:
-                    response_body = response.text
-
-                response_data = {
-                    'status_code': response.status_code,
-                    'headers': dict(response.headers),
-                    'body': response_body
-                }
 
                 allure.attach(
                     json.dumps(response_data, indent=2, ensure_ascii=False),
@@ -201,8 +220,7 @@ class ApiClient:
 
                 # 6. Execute assertions
                 if final_validations:
-                    allure.attach(source_message, name="Validation Source")
-
+                    logger.info(f"Starting validation for step {step_order}")
                     # Pass to assertion engine
                     self.assertion_engine.execute_assertions(
                         response_data,
@@ -213,13 +231,19 @@ class ApiClient:
 
                     # Execute custom validations if present
                     if "customValidations" in final_validations:
+                        logger.info(f"Executing custom validations for step {step_order}")
+                        
                         self.assertion_engine.validate_candlestick_data(
                             response_data,
                             final_validations,
                             context=context,
                             data_set_vars=data_set_variables
                         )
-
+                        
+                        logger.info(f"Custom validations completed for step {step_order}")
+                        
+                    logger.info(f"All validations passed for step {step_order}")
+                    
             except Exception as e:
                 step_status = 'failed'
                 allure.attach(
@@ -230,13 +254,17 @@ class ApiClient:
                 raise
 
             finally:
+                # Calculate step duration
+                step_duration = time.time() - step_start_time
+
                 # Record audit information
                 self.audit_trail.append({
                     "step_order": step_order,
                     "action_description": step_description,
                     "request_details": request_details_dict,
                     "response_details": response_data,
-                    "step_status": step_status
+                    "step_status": step_status,
+                    "step_duration": round(step_duration, 3)  # Round to milliseconds
                 })
 
     def _execute_websocket_step(
@@ -257,6 +285,8 @@ class ApiClient:
             validations_override: Validation overrides
             ws_client: WebSocket client instance
         """
+        import time
+
         step_order = step.get('step_order')
         step_description = step.get('description', f'Step {step_order}')
         step_name = f"step_{step_order}"
@@ -269,6 +299,11 @@ class ApiClient:
             step_status = 'passed'
             request_details_dict = {}
             response_data = {}
+            step_start_time = time.time()
+
+            # 记录WebSocket步骤开始执行的日志
+            logger.info(f"Executing WebSocket Step {step_order}: {step_description}")
+            allure.attach(f"Starting WebSocket Step {step_order}: {step_description}", name="WebSocket Step Execution Start", attachment_type=allure.attachment_type.TEXT)
 
             try:
                 # Initialize placeholder resolver
@@ -281,6 +316,13 @@ class ApiClient:
                     # Action: Connect to WebSocket
                     request = step.get('request', {})
                     url = resolver.resolve(request.get('url'))
+                    expect_failure = step.get('expect_failure', False)
+
+                    # If URL is still a placeholder or not provided, use base_url
+                    if not url or url.startswith('${'):
+                        url = self.base_url
+                        logger.info(f"Using api_client.base_url for WebSocket: {url}")
+
                     timeout = request.get('timeout', 10)
 
                     request_details_dict = {"action": "connect", "url": url, "timeout": timeout}
@@ -291,10 +333,18 @@ class ApiClient:
                     )
 
                     success = ws_client.connect(url, timeout)
-                    if not success:
-                        raise ConnectionError(f"Failed to connect to WebSocket: {url}")
 
-                    response_data = {"connected": True, "url": url}
+                    # Handle expected failures
+                    if expect_failure:
+                        if not success:
+                            logger.info(f"✅ Expected failure occurred: Connection to {url} failed as expected")
+                            response_data = {"connected": False, "url": url, "expected_failure": True}
+                        else:
+                            raise AssertionError(f"Expected connection to fail, but it succeeded: {url}")
+                    else:
+                        if not success:
+                            raise ConnectionError(f"Failed to connect to WebSocket: {url}")
+                        response_data = {"connected": True, "url": url}
 
                 elif action == 'send':
                     # Action: Send message
@@ -399,11 +449,15 @@ class ApiClient:
                 raise
 
             finally:
+                # Calculate step duration
+                step_duration = time.time() - step_start_time
+
                 # Record audit information
                 self.audit_trail.append({
                     "step_order": step_order,
                     "action_description": step_description,
                     "request_details": request_details_dict,
                     "response_details": response_data,
-                    "step_status": step_status
+                    "step_status": step_status,
+                    "step_duration": round(step_duration, 3)  # Round to milliseconds
                 })
