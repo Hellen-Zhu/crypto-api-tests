@@ -40,21 +40,21 @@
 
 ### 2. Installation Steps
 
-#### Clone repository
+#### 2.1 Clone repository
 
 ```bash
 git clone https://github.com/Hellen-Zhu/crypto-api-tests.git
 cd crypto-api-tests
 ```
 
-#### Create virtual environment
+#### 2.2 Create virtual environment
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
-#### Install dependencies
+#### 2.3 Install dependencies
 
 ```bash
 pip install -r requirements.txt
