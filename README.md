@@ -5,20 +5,24 @@
 ## 📋 Table of Contents
 
 - [Framework Overview](#-framework-overview)
-- [Installation Guide](#-installation-guide)
+- [Installation Guide](#️-installation-guide)
 - [Test Cases](#-test-cases)
 - [Usage Guide](#-usage-guide)
 - [Project Structure](#-project-structure)
+- [Technology Stack](#-technology-stack)
+- [Author](#-author)
 
 ## ✨ Framework Overview
 
 ### 🎯 Core Features
+
 - **Data-Driven Design** - Complete separation of test logic and test data, configuration as test
 - **Dual-Table Design** - Uses PostgreSQL JSONB to store flexible test steps, no frequent schema changes needed
 - **Zero-Invasion Extension** - Seamlessly supports HTTP and WebSocket via `protocol` field
 - **Enterprise Connection Pool** - Optimized database connection pool (20 base + 10 overflow)
 
 ### 🔧 Powerful Capabilities
+
 - ✅ **HTTP REST API Testing** - Complete request/response validation
 - ✅ **WebSocket Real-time Testing** - Subscription and push message validation
 - ✅ **Database Validation** - Direct query verification for data consistency
@@ -29,22 +33,30 @@
 ## 🛠️ Installation Guide
 
 ### 1. Prerequisites
+
 - Python 3.8+
 - PostgreSQL 14+
 - Virtual environment (recommended)
 
 ### 2. Installation Steps
 
+#### Clone repository
+
 ```bash
-# Clone repository
 git clone https://github.com/Hellen-Zhu/crypto-api-tests.git
 cd crypto-api-tests
+```
 
-# Create virtual environment
+#### Create virtual environment
+
+```bash
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
+```
 
-# Install dependencies
+#### Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
@@ -66,6 +78,10 @@ TEST_ENV=dev
 
 ### 4. Database Initialization
 
+```bash
+# Initialize database tables and test data
+python -c "from src.database.handler import DatabaseHandler; db = DatabaseHandler(); db.initialize_database()"
+```
 
 ## 📝 Test Cases
 
@@ -80,41 +96,6 @@ Test cases are stored in PostgreSQL database using dual-table design:
 2. **`case_data_sets`** - Test dataset table
    - Contains test data variables
    - Supports multi-environment configuration
-
-### Test Case Example
-
-```json
-{
-  "name": "User Login Test",
-  "service": "user_svc",
-  "module": "authentication",
-  "tags": ["P0", "smoke"],
-  "parameters": {
-    "steps": [
-      {
-        "protocol": "http",
-        "method": "POST",
-        "path": "/api/v1/login",
-        "body": {
-          "username": "{{@username}}",
-          "password": "{{@password}}"
-        },
-        "validations": [
-          {
-            "type": "status_code",
-            "expected": 200
-          },
-          {
-            "type": "json_path",
-            "path": "$.data.token",
-            "expected": "not_null"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
 
 ## 🚀 Usage Guide
 
@@ -131,7 +112,7 @@ python run.py --env uat
 python run.py --env uat -n 4
 
 # Filter by service
-python run.py --env uat --service "user_svc"
+python run.py --env uat --service "exhange_svc"
 
 # Filter by tags
 python run.py --env uat --tags "P0,smoke"
@@ -163,7 +144,7 @@ Report URL: `http://127.0.0.1:8889`
 python run.py --env uat -n auto
 
 # Combine filter conditions
-python run.py --env uat --service "user_svc" --tags "P0" --module "authentication"
+python run.py --env uat --service "exhange_svc" --tags "P0" --module "authentication"
 
 # Run tests associated with specific Jira
 python run.py --env uat --jira "PROJ-123"
@@ -171,7 +152,7 @@ python run.py --env uat --jira "PROJ-123"
 
 ## 📁 Project Structure
 
-```
+```text
 crypto-api-tests/
 ├── src/                          # Core source code
 │   ├── client/                   # Client layer
@@ -213,15 +194,6 @@ crypto-api-tests/
 | **Reporting** | Allure | 2.13.2 | Test report generation |
 | **Logging** | Loguru | 0.7.2 | Logging system |
 | **Parallel** | pytest-xdist | 3.8.0 | Parallel execution |
-
-## 📚 Additional Documentation
-
-Detailed architecture documentation is available in the `docs/` directory:
-
-- **[Architecture Overview](docs/ARCHITECTURE.md)** - Five-layer architecture design
-- **[Detailed Layer Design](docs/LAYER_DETAILS.md)** - Technical design for each layer
-- **[Interview Guide](docs/INTERVIEW_GUIDE.md)** - Technical interview guidance
-- **[Test Cases Guide](docs/TEST_CASES_README.md)** - Test case writing guide
 
 ## 👥 Author
 
