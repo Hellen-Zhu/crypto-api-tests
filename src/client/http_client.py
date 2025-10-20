@@ -15,6 +15,7 @@ It handles HTTP protocol details while ApiClient handles orchestration.
 
 import requests
 import json
+import os
 from typing import Dict, Any, Optional
 from src.common.logger import logger
 
@@ -56,7 +57,7 @@ class HttpClient:
         headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         body: Optional[Dict[str, Any]] = None,
-        timeout: int = 30
+        timeout: int = None
     ) -> Dict[str, Any]:
         """
         Send HTTP request and return standardized response.
@@ -67,7 +68,7 @@ class HttpClient:
             headers: Request headers dictionary
             params: Query parameters dictionary
             body: Request body (will be JSON-encoded)
-            timeout: Request timeout in seconds (default: 30)
+            timeout: Request timeout in seconds (default: from HTTP_DEFAULT_TIMEOUT env var or 30)
 
         Returns:
             Standardized response dictionary:
@@ -81,8 +82,12 @@ class HttpClient:
             requests.RequestException: For network/HTTP errors
             requests.Timeout: If request exceeds timeout
         """
+        # Use environment variable timeout if not specified
+        if timeout is None:
+            timeout = int(os.getenv('HTTP_DEFAULT_TIMEOUT', 30))
+
         logger.info(f"Sending {method} request to {url}")
-        logger.debug(f"Request params: {params}, body: {body}")
+        logger.debug(f"Request params: {params}, body: {body}, timeout: {timeout}s")
 
         try:
             # Send HTTP request using session

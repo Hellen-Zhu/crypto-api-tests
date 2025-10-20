@@ -35,6 +35,10 @@ def get_db_engine():
     pool_timeout = int(os.getenv('DB_POOL_TIMEOUT', 30))
     pool_recycle = int(os.getenv('DB_POOL_RECYCLE', 3600))
 
+    # Get timezone and connection timeout from environment variables
+    db_timezone = os.getenv('DB_TIMEZONE', 'Asia/Shanghai')
+    db_connect_timeout = int(os.getenv('DB_CONNECT_TIMEOUT', 10))
+
     engine = create_engine(
         db_url,
         echo=False,
@@ -46,8 +50,8 @@ def get_db_engine():
         pool_pre_ping=True,
         echo_pool=False,
         connect_args={
-            'connect_timeout': 10,  # Connection timeout
-            'options': '-c timezone=Asia/Shanghai'  # Use local timezone for timestamps
+            'connect_timeout': db_connect_timeout,  # From .env, default: 10 seconds
+            'options': f'-c timezone={db_timezone}'  # From .env, default: Asia/Shanghai
         }
     )
 
@@ -67,7 +71,8 @@ def get_db_engine():
     logger.info(
         f"Database engine created with connection pool: "
         f"size={pool_size}, max_overflow={max_overflow}, "
-        f"timeout={pool_timeout}s, recycle={pool_recycle}s"
+        f"timeout={pool_timeout}s, recycle={pool_recycle}s, "
+        f"timezone={db_timezone}, connect_timeout={db_connect_timeout}s"
     )
 
     return engine

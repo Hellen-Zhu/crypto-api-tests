@@ -1,6 +1,6 @@
 # 🚀 Crypto API Test Framework
 
-**Enterprise-grade Data-Driven API Automation Testing Framework** - Designed for cryptocurrency exchanges, supporting both HTTP REST API and WebSocket real-time data stream testing.
+**Enterprise-grade Configuration-Driven API Automation Testing Framework** - Designed for cryptocurrency exchanges, supporting both HTTP REST API and WebSocket real-time data stream testing.
 
 ## 📋 Table of Contents
 
@@ -15,10 +15,9 @@
 
 ### 🎯 Core Features
 
-- **Data-Driven Design** - Complete separation of test logic and test data, configuration as test
-- **Dual-Table Design** - Uses PostgreSQL JSONB to store flexible test steps, no frequent schema changes needed
+- **Configuration-Driven Design** - Complete separation of test logic and test data, configuration as test
+- **Table Design** - Uses PostgreSQL JSONB to store flexible test steps, no frequent schema changes needed
 - **Zero-Invasion Extension** - Seamlessly supports HTTP and WebSocket via `protocol` field
-- **Enterprise Connection Pool** - Optimized database connection pool (20 base + 10 overflow)
 
 ### 🔧 Powerful Capabilities
 

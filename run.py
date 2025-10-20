@@ -4,18 +4,21 @@ import pytest
 import argparse
 import os
 import sys
+import shutil
 from dotenv import load_dotenv
 from src.common.logger import logger
 
 # =================================================================
 # 1. Global Configuration Loading
 # =================================================================
-# Load the unique .env file from project root directory on framework startup.
-logger.info("Loading framework database configuration from .env file")
+# Load environment variables from .env file at project root
+# This should be the ONLY place where we call load_dotenv()
+logger.info("Loading framework configuration from .env file")
 load_dotenv()
 
-# Define a hardcoded default environment
-DEFAULT_ENV = 'dev'
+# Get configuration from environment variables with sensible defaults
+ALLURE_RESULTS_DIR = os.getenv('ALLURE_RESULTS_DIR', 'reports/allure-results')
+ALLURE_REPORT_DIR = os.getenv('ALLURE_REPORT_DIR', 'reports/allure-report')
 
 # =================================================================
 # 2. Main Execution Function
@@ -42,7 +45,7 @@ def main():
         type=str,
         default=None,
         help=f"Specify test target environment (e.g., dev, uat).\n"
-             f"Priority: Command-line > Environment Variable TEST_ENV > Default '{DEFAULT_ENV}'."
+             f"Priority: Command-line > Environment Variable TEST_ENV > Default uat."
     )
 
     parser.add_argument(
@@ -66,7 +69,7 @@ def main():
     args = parser.parse_args()
 
     # 3. Determine final configuration based on priority strategy
-    final_env = args.env or env_from_os or DEFAULT_ENV
+    final_env = args.env or env_from_os or 'uat'
     final_parallel = args.parallel or parallel_from_os  # Command-line > Environment Variable
 
     logger.info(f"Final environment for this run: {final_env}")
@@ -75,8 +78,9 @@ def main():
         logger.info(f"Parallel execution enabled with {final_parallel} workers")
 
     # 4. Prepare pytest argument list
-    report_dir = 'reports/allure-results'
-    pytest_args = ['tests/test_main.py', '-v', '--alluredir', report_dir]
+    # Note: -v and --alluredir are now configured in pytest.ini
+    # We only need to specify test path and dynamic arguments here
+    pytest_args = ['tests/test_main.py']
 
     # Pass all parsed arguments correctly to pytest
     pytest_args.append(f"--env={final_env}")
@@ -91,17 +95,22 @@ def main():
     if args.debug_mode: pytest_args.append("--debug-mode")
     if args.run_id: pytest_args.append(f"--run-id={args.run_id}")
 
-    # 5. Run pytest and generate reports
-    if os.path.exists(report_dir):
-        import shutil
-        shutil.rmtree(report_dir)
+    # 5. Clean up old Allure results before test execution
+    # pytest.ini handles --clean-alluredir but we also clean manually for safety
+    if os.path.exists(ALLURE_RESULTS_DIR):
+        logger.info(f"Cleaning old Allure results: {ALLURE_RESULTS_DIR}")
+        shutil.rmtree(ALLURE_RESULTS_DIR)
 
+    # 6. Run pytest
+    logger.info(f"Starting test execution with pytest args: {' '.join(pytest_args)}")
     exit_code = pytest.main(pytest_args)
 
+    # 7. Generate Allure HTML report
     logger.info("Test execution completed. Generating Allure report...")
-    os.system(f'allure generate {report_dir} -o reports/allure-report --clean')
-    
-    logger.info("Allure report generated successfully!")
+    os.system(f'allure generate {ALLURE_RESULTS_DIR} -o {ALLURE_REPORT_DIR} --clean')
+
+    logger.info(f"Allure report generated successfully at: {ALLURE_REPORT_DIR}")
+    logger.info(f"To view the report, run: allure open {ALLURE_REPORT_DIR}")
 
     sys.exit(exit_code)
 

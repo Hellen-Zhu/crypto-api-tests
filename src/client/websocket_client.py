@@ -4,6 +4,7 @@ import json
 import time
 import threading
 import ssl
+import os
 from typing import List, Dict, Any, Optional
 import websocket
 from src.common.logger import logger
@@ -35,13 +36,13 @@ class WebSocketClient:
         self.connection_thread = None
         self.url = None
 
-    def connect(self, url: str, timeout: int = 10) -> bool:
+    def connect(self, url: str, timeout: int = None) -> bool:
         """
         Connect to WebSocket server.
 
         Args:
             url: WebSocket URL (e.g., wss://example.com/ws)
-            timeout: Connection timeout in seconds
+            timeout: Connection timeout in seconds (default: from WS_CONNECT_TIMEOUT env var or 10)
 
         Returns:
             bool: True if connection successful, False otherwise
@@ -49,9 +50,17 @@ class WebSocketClient:
         Raises:
             Exception: If connection fails
         """
+        # Use environment variable timeout if not specified
+        if timeout is None:
+            timeout = int(os.getenv('WS_CONNECT_TIMEOUT', 10))
+
+        # Get SSL verification setting from environment
+        ssl_verify = os.getenv('CLIENT_WS_SSL_VERIFY', 'false').lower() == 'true'
+
         try:
             self.url = url
             logger.info(f"🔌 Connecting to WebSocket: {url}")
+            logger.debug(f"Connection timeout: {timeout}s, SSL verify: {ssl_verify}")
 
             # Create WebSocketApp instance
             self.ws = websocket.WebSocketApp(
@@ -62,15 +71,21 @@ class WebSocketClient:
                 on_close=self._on_close
             )
 
-            # Configure SSL to skip certificate verification for testing
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
+            # Configure SSL based on environment setting
+            if ssl_verify:
+                ssl_context = ssl.create_default_context()
+                sslopt = {"context": ssl_context}
+            else:
+                # Skip certificate verification for testing environments
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                sslopt = {"cert_reqs": ssl.CERT_NONE}
 
             # Start WebSocket in separate thread
             self.connection_thread = threading.Thread(
                 target=self.ws.run_forever,
-                kwargs={'sslopt': {"cert_reqs": ssl.CERT_NONE}}
+                kwargs={'sslopt': sslopt}
             )
             self.connection_thread.daemon = True
             self.connection_thread.start()
@@ -118,13 +133,13 @@ class WebSocketClient:
             logger.error(f"❌ Failed to send WebSocket message: {e}")
             raise
 
-    def wait_for_messages(self, count: int = 1, timeout: int = 30) -> List[Dict[str, Any]]:
+    def wait_for_messages(self, count: int = 1, timeout: int = None) -> List[Dict[str, Any]]:
         """
         Wait for a specific number of messages to be received.
 
         Args:
             count: Number of messages to wait for
-            timeout: Maximum wait time in seconds
+            timeout: Maximum wait time in seconds (default: from WS_MESSAGE_TIMEOUT env var or 30)
 
         Returns:
             List of received messages
@@ -132,6 +147,10 @@ class WebSocketClient:
         Raises:
             TimeoutError: If messages not received within timeout
         """
+        # Use environment variable timeout if not specified
+        if timeout is None:
+            timeout = int(os.getenv('WS_MESSAGE_TIMEOUT', 30))
+
         logger.info(f"⏳ Waiting for {count} WebSocket message(s), timeout: {timeout}s")
 
         start_time = time.time()
@@ -188,9 +207,10 @@ class WebSocketClient:
                 logger.info("🔌 Disconnecting WebSocket...")
                 self.ws.close()
 
-                # Wait for thread to finish (with timeout)
+                # Wait for thread to finish (with timeout from environment)
+                disconnect_timeout = int(os.getenv('WS_DISCONNECT_TIMEOUT', 2))
                 if self.connection_thread and self.connection_thread.is_alive():
-                    self.connection_thread.join(timeout=2)
+                    self.connection_thread.join(timeout=disconnect_timeout)
 
                 self.is_connected = False
                 logger.success("✅ WebSocket disconnected successfully")

@@ -1,5 +1,6 @@
 # models/tables.py
 
+import os
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean,
     ForeignKey, TIMESTAMP, REAL, text
@@ -10,10 +11,14 @@ from sqlalchemy.orm import declarative_base, relationship
 # Create base class for all ORM classes
 Base = declarative_base()
 
-# Helper function to get current time in China timezone (UTC+8)
-def china_now():
-    """Returns current timestamp in China timezone (UTC+8)"""
-    return text("(NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')")
+# Helper function to get current time in configured timezone
+def get_current_timestamp():
+    """
+    Returns current timestamp in the configured timezone.
+    Timezone is read from DB_TIMEZONE environment variable (default: Asia/Shanghai)
+    """
+    db_timezone = os.getenv('DB_TIMEZONE', 'Asia/Shanghai')
+    return text(f"(NOW() AT TIME ZONE 'UTC' AT TIME ZONE '{db_timezone}')")
 
 # =================================================================
 # 1. Test Case Definition Tables
@@ -49,8 +54,8 @@ class ApiAutoCase(Base):
 
     # Status and metadata
     enable = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
+    created_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp(), onupdate=get_current_timestamp())
 
 # =================================================================
 # 2. Test Configuration Tables
@@ -110,8 +115,8 @@ class AutoProgress(Base):
     profile = Column(String(200))
 
     # Timestamp fields (unified naming convention)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
+    created_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp(), onupdate=get_current_timestamp())
 
 class AutoCaseAudit(Base):
     """
@@ -137,8 +142,8 @@ class AutoCaseAudit(Base):
     input_variables = Column(JSONB)
 
     # Timestamp fields (unified naming convention)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
+    created_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp(), onupdate=get_current_timestamp())
 
     # Relationships
     debug_logs = relationship("AutoTestAudit", back_populates="case_audit", cascade="all, delete-orphan")
@@ -160,8 +165,8 @@ class AutoTestAudit(Base):
     step_duration = Column(REAL)  # Duration for this specific step in seconds
 
     # Timestamp fields (unified naming convention)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=china_now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=china_now(), onupdate=china_now())
+    created_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=get_current_timestamp(), onupdate=get_current_timestamp())
 
     # Relationships
     case_audit = relationship("AutoCaseAudit", back_populates="debug_logs")
